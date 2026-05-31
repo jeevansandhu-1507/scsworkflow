@@ -1,0 +1,98 @@
+@page "/notifications"
+@implements IDisposable
+@inject NotificationService Notify
+@inject UserContextService UserCtx
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · @L.Notifications</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Notifications</div>
+            <h1>@L.T("Inbox", "Boîte de réception")</h1>
+            <p class="sub">@L.T("In-portal notifications. Email + EN/FR routing wired to roles (FRD §13).", "Notifications dans le portail.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat">
+                <div class="lbl">Unread</div>
+                <div class="v">@Notify.UnreadCountForCurrent()</div>
+                <div class="sub">in your inbox</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Total</div>
+                <div class="v">@Notify.ForCurrent().Count()</div>
+                <div class="sub">visible</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Role</div>
+                <div class="v" style="font-size:16px">@RoleInfo.Label(UserCtx.Effective.Role)</div>
+                <div class="sub">filtered for you</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Action</div>
+                <div class="v" style="font-size:16px"><button class="btn ghost" style="padding:0" @onclick="() => Notify.MarkAllRead()">Mark all read</button></div>
+                <div class="sub">apply to inbox</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="db-card">
+        <div class="db-head"><h3>@L.T("All notifications", "Toutes les notifications")</h3></div>
+        <div class="notif-list">
+            @foreach (var n in Notify.ForCurrent())
+            {
+                <div class="notif-row @(n.Read ? "read" : "") lvl-@(n.Level.ToString().ToLower())" @onclick="() => Open(n)">
+                    <div class="nr-bullet"></div>
+                    <div class="nr-body">
+                        <div class="nr-ttl">@n.Title</div>
+                        <div class="nr-sub">@n.Body</div>
+                    </div>
+                    <div class="nr-when mono">@RelativeTime(n.When)</div>
+                </div>
+            }
+            @if (!Notify.ForCurrent().Any())
+            {
+                <div class="empty-state" style="margin:0;border-radius:0">
+                    <div class="empty-title">No notifications</div>
+                    <div class="empty-sub">Approve an FC or submit a request to see them appear here.</div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Notify.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void Open(Notification n)
+    {
+        Notify.MarkRead(n.Id);
+        if (!string.IsNullOrEmpty(n.Link)) Nav.NavigateTo(n.Link);
+    }
+
+    private static string RelativeTime(DateTime t)
+    {
+        var span = DateTime.Now - t;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
+        return t.ToString("MMM dd, yyyy");
+    }
+
+    public void Dispose()
+    {
+        Notify.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

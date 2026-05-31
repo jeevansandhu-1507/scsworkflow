@@ -1,0 +1,36 @@
+@if (Visible)
+{
+    <div class="overflow-menu" style="left:@(Left)px;top:@(Top)px;" @onclick:stopPropagation="true">
+        @if (ShowSync)
+        {
+            <div class="om-item" @onclick="@(() => Select("sync"))">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                Sync to Zoho Books
+            </div>
+            <div class="om-divider"></div>
+        }
+        <div class="om-item" @onclick="@(() => Select("duplicate"))">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            Duplicate as draft
+        </div>
+        <div class="om-item" @onclick="@(() => Select("history"))">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+            View history
+        </div>
+        <div class="om-divider"></div>
+        <div class="om-item danger" @onclick="@(() => Select("delete"))">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+            Delete commitment
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public double Left { get; set; }
+    [Parameter] public double Top { get; set; }
+    [Parameter] public bool ShowSync { get; set; }
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+
+    private Task Select(string action) => OnSelect.InvokeAsync(action);
+}

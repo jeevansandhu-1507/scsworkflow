@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(curl -ks https://localhost:5001)",
+      "Bash(curl -s http://localhost:5000)",
+      "Bash(curl -ks https://localhost:5001/funding-commitments)",
+      "Bash(curl -ks https://localhost:5001/rollover)",
+      "Bash(curl -ks https://localhost:5001/funding-commitments/new)",
+      "Bash(curl -ks https://localhost:5001/)",
+      "Bash(grep -n \"</div>\\\\s*$\" /Users/jatinkumarkakrey/Downloads/SCSPortal/Pages/SchedulingPage.razor)",
+      "Bash(grep -n \"VendorSp || !UserCtx.IsInternal\\\\|UserCtx.Effective.Role == AppRole.VendorIsw\\\\|VendorIsw\\)\\\\s*$\" /Users/jatinkumarkakrey/Downloads/SCSPortal/Pages/FinancialPressurePage.razor)"
+    ]
+  }
+}

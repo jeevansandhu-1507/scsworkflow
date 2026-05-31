@@ -1,0 +1,203 @@
+@page "/my-vendors"
+@implements IDisposable
+@inject VendorService Vendors
+@inject FundingCommitmentService Fc
+@inject ActiveContextService ActiveCtx
+@inject UserContextService UserCtx
+@inject NavigationManager Nav
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.T("My Vendors", "Mes fournisseurs")</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.T("My Vendors", "Mes fournisseurs")</div>
+            <h1>@L.T("Vendors associated with you", "Fournisseurs associés")</h1>
+            <p class="sub">@L.T("Vendors assigned to your approved/active funding commitments. Book shifts or raise invoices.", "Fournisseurs assignés à vos engagements approuvés.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat stat-money-main">
+                <div class="lbl">Total vendors</div>
+                <div class="v">@AssociatedVendors().Count()</div>
+                <div class="sub">on your approved FCs</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">ISW</div>
+                <div class="v">@AssociatedVendors().Count(v => v.Type == VendorType.Isw)</div>
+                <div class="sub">independent workers</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">SP</div>
+                <div class="v">@AssociatedVendors().Count(v => v.Type == VendorType.Sp)</div>
+                <div class="sub">service providers</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">FCs</div>
+                <div class="v">@LinkedFcs().Count()</div>
+                <div class="sub">active / approved</div>
+            </div>
+        </div>
+    </div>
+
+    @if (ActiveCtx.RequiresActive && !ActiveCtx.HasActive)
+    {
+        <div class="empty-state">
+            <div class="empty-title">No active client/project</div>
+            <div class="empty-sub">Pick a client or project in the top bar to see their associated vendors.</div>
+        </div>
+    }
+    else if (!AssociatedVendors().Any())
+    {
+        <div class="empty-state">
+            <div class="empty-title">No associated vendors yet</div>
+            <div class="empty-sub">Vendors get linked when they're assigned to a service line on an approved Funding Commitment.</div>
+        </div>
+    }
+    else
+    {
+        <div class="vendor-grid">
+            @foreach (var v in AssociatedVendors())
+            {
+                var vv = v;
+                var linkedSvcs = LinkedFcs().SelectMany(r => r.Services.Where(s => s.Vendor == vv.Name).Select(s => s.Name)).Distinct().ToList();
+                var totalCommitted = LinkedFcs().Sum(r => r.Services.Where(s => s.Vendor == vv.Name).Sum(s => s.LineTotal));
+                <div class="vendor-card">
+                    <div class="vendor-card-head">
+                        <div class="vendor-av">@VendorInitials(vv.Name)</div>
+                        <div style="flex:1">
+                            <div class="vendor-name">@vv.Name</div>
+                            <div class="vendor-meta">
+                                <span class="assoc-pill @(vv.Type == VendorType.Isw ? "client" : "project")">@(vv.Type == VendorType.Isw ? "ISW" : "Service Provider")</span>
+                                <span class="muted" style="margin-left:6px">@vv.Contact</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vendor-card-body">
+                        <div class="vendor-row">
+                            <span class="vendor-row-k">Email</span>
+                            <span class="vendor-row-v">@vv.Email</span>
+                        </div>
+                        <div class="vendor-row">
+                            <span class="vendor-row-k">Phone</span>
+                            <span class="vendor-row-v">@vv.Phone</span>
+                        </div>
+                        <div class="vendor-row">
+                            <span class="vendor-row-k">Service lines</span>
+                            <span class="vendor-row-v">@(linkedSvcs.Count == 0 ? "—" : string.Join(", ", linkedSvcs))</span>
+                        </div>
+                        <div class="vendor-row">
+                            <span class="vendor-row-k">Total committed</span>
+                            <span class="vendor-row-v mono"><strong>@totalCommitted.ToString("C2")</strong></span>
+                        </div>
+                    </div>
+                    <div class="vendor-card-foot">
+                        @if (vv.Type == VendorType.Isw)
+                        {
+                            <button class="btn primary" @onclick="() => BookShift(vv)">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+                                Book a shift
+                            </button>
+                        }
+                        @if (UserCtx.IsClient || UserCtx.IsInternal)
+                        {
+                            <button class="btn" @onclick="() => RaiseInvoice(vv)">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+                                Raise invoice
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="db-card" style="margin-top:18px">
+            <div class="db-head"><h3>@L.T("Linked funding commitments", "Engagements liés")</h3></div>
+            <div class="data-table-wrap inline">
+                <table class="data-table">
+                    <thead><tr><th>FC Ref</th><th>Status</th><th>Vendors on FC</th><th class="num">Plan</th><th class="num">Committed</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in LinkedFcs())
+                        {
+                            var st = StatusInfo.For(r.Status);
+                            var vendorList = string.Join(", ", r.Services.Select(s => s.Vendor).Distinct().Where(v => v != "Unassigned"));
+                            <tr>
+                                <td class="mono">@r.CommitId</td>
+                                <td><span class="status-pill @st.CssClass">@st.Label</span></td>
+                                <td class="muted">@vendorList</td>
+                                <td class="num mono">@r.TotalPlan.ToString("C2")</td>
+                                <td class="num mono">@r.Total.ToString("C2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Vendors.OnChange += R;
+        Fc.OnChange += R;
+        ActiveCtx.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FundingCommitment> LinkedFcs()
+    {
+        if (!ActiveCtx.HasActive) return Array.Empty<FundingCommitment>();
+        var src = Fc.Rows.Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Pending);
+        if (ActiveCtx.Kind == ActiveContextKind.Client)
+        {
+            var cid = ActiveCtx.ActiveClient!.EtoId;
+            return src.Where(r => r.Association == AssociationType.Client && r.ClientId == cid);
+        }
+        var pid = ActiveCtx.ActiveProject!.Id;
+        return src.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == pid);
+    }
+
+    private IEnumerable<Vendor> AssociatedVendors()
+    {
+        var names = LinkedFcs()
+            .SelectMany(r => r.Services.Select(s => s.Vendor))
+            .Where(n => !string.IsNullOrEmpty(n) && n != "Unassigned")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return Vendors.Vendors.Where(v => names.Contains(v.Name))
+                              .Concat(names.Where(n => !Vendors.Vendors.Any(v => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase)))
+                                           .Select(n => new Vendor { Id = "v-ext-" + n, Name = n, Type = VendorType.Isw, Contact = n, Email = "—", Phone = "—" }))
+                              .OrderBy(v => v.Name);
+    }
+
+    private void BookShift(Vendor v)
+    {
+        Nav.NavigateTo($"/scheduling?vendor={Uri.EscapeDataString(v.Name)}");
+    }
+
+    private void RaiseInvoice(Vendor v)
+    {
+        Nav.NavigateTo($"/invoices?vendor={Uri.EscapeDataString(v.Name)}");
+    }
+
+    private static string VendorInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpper();
+    }
+
+    public void Dispose()
+    {
+        Vendors.OnChange -= R;
+        Fc.OnChange -= R;
+        ActiveCtx.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

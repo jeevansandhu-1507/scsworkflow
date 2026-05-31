@@ -1,0 +1,228 @@
+@inject VendorService Vendors
+
+@if (_open)
+{
+    <div class="modal-overlay" @onclick="Cancel"></div>
+    <div class="sfd-card" @onclick:stopPropagation="true">
+        <header class="sfd-head">
+            <div class="sfd-title">Add Service Funding Detail</div>
+        </header>
+
+        <div class="sfd-summary">
+            <div class="sfd-summary-left">
+                <div class="sfd-summary-lbl">MCCSS Plan Type</div>
+                <div class="sfd-summary-val">
+                    @(IsRestricted ? (string.IsNullOrEmpty(_line.Plan) ? "—" : _line.Plan) : "(Unrestricted plan — service-type only)")
+                </div>
+                <div class="sfd-summary-hint">Other saved lines plus the maximum total below update these figures as you type.</div>
+            </div>
+            <div class="sfd-summary-stats">
+                <div class="sfd-stat">
+                    <div class="lbl">Total Funding</div>
+                    <div class="v">$@TotalFunding.ToString("N0")</div>
+                </div>
+                <div class="sfd-stat">
+                    <div class="lbl">Already Committed</div>
+                    <div class="v">$@AlreadyCommitted.ToString("N0")</div>
+                </div>
+                <div class="sfd-stat">
+                    <div class="lbl">Remaining</div>
+                    <div class="v" style="color:@(Remaining < 0 ? "var(--danger)" : "var(--success)")">$@Remaining.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sfd-body">
+            @if (IsRestricted)
+            {
+                <div class="sfd-row">
+                    <label class="sfd-lbl">MCCSS Plan Type <span class="req">*</span></label>
+                    <select class="sfd-input" @bind="_line.Plan">
+                        <option value="">Select your answer</option>
+                        @foreach (var t in PlanTypes) { <option value="@t">@t</option> }
+                    </select>
+                </div>
+            }
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Service Name <span class="req">*</span></label>
+                <select class="sfd-input" @bind="_line.Name">
+                    <option value="">Select your answer</option>
+                    @foreach (var s in Catalog.WizardServiceNames) { <option value="@s">@s</option> }
+                </select>
+            </div>
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Provider Type <span class="req">*</span></label>
+                <select class="sfd-input" @bind="_line.Provider">
+                    <option value="">Select your answer</option>
+                    @foreach (var p in Catalog.WizardProviderTypes) { <option value="@p">@p</option> }
+                </select>
+            </div>
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Provider / Vendor Name <span class="req">*</span></label>
+                <select class="sfd-input" @bind="_line.Vendor">
+                    <option value="">Select your answer</option>
+                    @foreach (var v in Vendors.Vendors) { <option value="@v.Name">@v.Name (@(v.Type == VendorType.Isw ? "ISW" : "SP"))</option> }
+                    <option value="anchal2 test">anchal2 test (ISW)</option>
+                </select>
+            </div>
+
+            <div class="sfd-row sfd-toggle-row">
+                <div class="sfd-toggle">
+                    <label class="sfd-lbl">Has Maximum Rate?</label>
+                    <label class="switch">
+                        <input type="checkbox" @bind="_line.HasMaxRate" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            @if (_line.HasMaxRate)
+            {
+                <div class="sfd-row">
+                    <label class="sfd-lbl">Maximum Rate</label>
+                    <input type="number" class="sfd-input" placeholder="Please enter a whole number"
+                           value="@(_line.Rate == 0 ? "" : _line.Rate.ToString("0.##"))"
+                           @onchange="@(e => SetRate(e.Value?.ToString()))" />
+                </div>
+            }
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Unit Type <span class="req">*</span></label>
+                <select class="sfd-input" @bind="_line.Unit">
+                    @foreach (var u in Catalog.WizardUnits) { <option value="@u">@u</option> }
+                </select>
+            </div>
+
+            <div class="sfd-row sfd-toggle-row">
+                <div class="sfd-toggle">
+                    <label class="sfd-lbl">Has Maximum Units?</label>
+                    <label class="switch">
+                        <input type="checkbox" @bind="_line.HasMaxUnits" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            @if (_line.HasMaxUnits)
+            {
+                <div class="sfd-row">
+                    <label class="sfd-lbl">Maximum Units</label>
+                    <input type="number" class="sfd-input"
+                           value="@(_line.Units == 0 ? "" : _line.Units.ToString("0.##"))"
+                           @onchange="@(e => SetUnits(e.Value?.ToString()))" />
+                </div>
+            }
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Maximum Total Amount <span class="req">*</span></label>
+                <input type="text" class="sfd-input sfd-readonly" readonly value="@(_line.LineTotal.ToString("C2"))" />
+            </div>
+
+            <div class="sfd-row sfd-toggle-row">
+                <div class="sfd-toggle">
+                    <label class="sfd-lbl">Include HST</label>
+                    <label class="switch">
+                        <input type="checkbox" @bind="_line.IncludeHst" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sfd-hint">HST-inclusive planning amount is calculated as Base × 1.0394.</div>
+            </div>
+
+            @if (_line.IncludeHst)
+            {
+                <div class="sfd-row sfd-inline-row">
+                    <span class="sfd-inline-lbl"><strong>Planning base amount (optional)</strong> @_line.LineTotal.ToString("C2")</span>
+                    <span class="sfd-inline-val">HST-inclusive: <strong>@_line.LineTotalWithHst.ToString("C2")</strong></span>
+                </div>
+            }
+            else
+            {
+                <div class="sfd-row sfd-inline-row">
+                    <span class="sfd-inline-lbl"><strong>Planning base amount (optional)</strong> @_line.LineTotal.ToString("C2")</span>
+                </div>
+            }
+
+            <div class="sfd-row">
+                <label class="sfd-lbl">Invoice Support Note</label>
+                <textarea class="sfd-input sfd-textarea" placeholder="Enter notes regarding invoice support…"
+                          maxlength="1000"
+                          @bind="_line.InvoiceSupportNote"></textarea>
+                <div class="sfd-char">@(_line.InvoiceSupportNote?.Length ?? 0) / 1000</div>
+            </div>
+        </div>
+
+        <footer class="sfd-foot">
+            <button class="sfd-btn sfd-cancel" @onclick="Cancel">CANCEL</button>
+            <button class="sfd-btn sfd-save" @onclick="Save" disabled="@(!CanSave())">SAVE</button>
+        </footer>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsRestricted { get; set; } = true;
+    [Parameter] public List<string> PlanTypes { get; set; } = new();
+    [Parameter] public decimal TotalFunding { get; set; }
+    [Parameter] public decimal AlreadyCommitted { get; set; }
+    [Parameter] public EventCallback<ServiceLine> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool _open;
+    private ServiceLine _line = new();
+    private ServiceLine? _editing;   // reference to the original being edited
+
+    public bool IsOpen => _open;
+
+    public decimal Remaining => TotalFunding - AlreadyCommitted - _line.LineTotal;
+
+    public void OpenNew(string defaultPlan = "")
+    {
+        _editing = null;
+        _line = new ServiceLine
+        {
+            Plan = defaultPlan,
+            Unit = "Hour",
+            HasMaxRate = true,
+            HasMaxUnits = true
+        };
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void OpenEdit(ServiceLine line)
+    {
+        _editing = line;
+        _line = line.Clone();
+        _open = true;
+        StateHasChanged();
+    }
+
+    private void SetRate(string? value) => _line.Rate = decimal.TryParse(value, out var n) ? n : 0;
+    private void SetUnits(string? value) => _line.Units = decimal.TryParse(value, out var n) ? n : 0;
+
+    private bool CanSave()
+    {
+        if (IsRestricted && string.IsNullOrEmpty(_line.Plan)) return false;
+        if (string.IsNullOrEmpty(_line.Name)) return false;
+        if (string.IsNullOrEmpty(_line.Provider)) return false;
+        if (string.IsNullOrEmpty(_line.Vendor)) return false;
+        if (string.IsNullOrEmpty(_line.Unit)) return false;
+        return true;
+    }
+
+    private async Task Save()
+    {
+        if (!CanSave()) return;
+        _open = false;
+        await OnSave.InvokeAsync(_line);
+    }
+
+    private async Task Cancel()
+    {
+        _open = false;
+        await OnCancel.InvokeAsync();
+    }
+}

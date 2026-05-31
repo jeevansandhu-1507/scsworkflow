@@ -1,0 +1,267 @@
+@page "/funding-commitments"
+@implements IDisposable
+@inject FundingCommitmentService Fc
+@inject PermanentFundingService Pf
+@inject ProjectService Projects
+@inject ActiveContextService ActiveClient
+@inject UserContextService UserCtx
+@inject NavigationManager Nav
+@inject ToastService Toasts
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.FundingCommitments</PageTitle>
+
+<section class="page">
+
+    <div class="fcl-head">
+        <h1 class="fcl-title">📄 Funding Commitment</h1>
+    </div>
+
+    <div class="fcl-card">
+        <div class="fcl-card-head">
+            <div class="fcl-card-title">Funding Commitment</div>
+            <div class="fcl-card-actions">
+                @if (UserCtx.IsCaseManager || UserCtx.IsAdmin || UserCtx.IsFinance)
+                {
+                    <button class="btn primary fcl-add"
+                            @onclick='() => Nav.NavigateTo("/funding-commitments/new")'>
+                        ADD FUNDING COMMITMENT
+                    </button>
+                }
+                <div class="fcl-view">
+                    <label>View</label>
+                    <select class="modal-input fcl-select" @bind="_view" @bind:after="OnFilterChanged">
+                        <option value="all">All Funding Commitment</option>
+                        <option value="draft">Drafts only</option>
+                        <option value="pending">In review</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="fcl-view">
+                    <label>Per page</label>
+                    <select class="modal-input fcl-select" @bind="_perPage" @bind:after="OnPerPageChanged">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <button class="btn fcl-filter @(_filtersOpen ? "active" : "")" @onclick="() => _filtersOpen = !_filtersOpen">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54z" /></svg>
+                    FILTERS
+                </button>
+            </div>
+        </div>
+
+        @if (_filtersOpen)
+        {
+            <div class="fcl-filter-bar">
+                <div class="modal-row">
+                    <label class="modal-lbl">Search</label>
+                    <input class="modal-input" placeholder="FC id, client, vendor…" @bind="_search" @bind:event="oninput" @bind:after="OnFilterChanged" />
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Fiscal year</label>
+                    <select class="modal-input" @bind="_fyFilter" @bind:after="OnFilterChanged">
+                        <option value="">All fiscal years</option>
+                        @foreach (var fy in AllFiscalYears()) { <option value="@fy">@fy</option> }
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Created by</label>
+                    <select class="modal-input" @bind="_creatorFilter" @bind:after="OnFilterChanged">
+                        <option value="">Anyone</option>
+                        @foreach (var c in AllCreators()) { <option value="@c">@c</option> }
+                    </select>
+                </div>
+                @if (ActiveClient.RequiresActive && ActiveClient.HasActive)
+                {
+                    <div class="modal-row" style="align-self:flex-end">
+                        <button class="btn ghost" @onclick="ResetFilters">Reset</button>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (ActiveClient.RequiresActive && !ActiveClient.HasActive)
+        {
+            <div class="empty-state" style="margin:0;border-radius:0">
+                <div class="empty-title">No active client or project selected</div>
+                <div class="empty-sub">Use <strong>Set Active Client</strong> in the top bar to filter this list to one client/project's funding commitments.</div>
+            </div>
+        }
+        else
+        {
+            var all = Filtered().ToList();
+            var total = all.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)_perPage));
+            if (_page > totalPages) _page = totalPages;
+            if (_page < 1) _page = 1;
+            var startIx = (_page - 1) * _perPage;
+            var pageItems = all.Skip(startIx).Take(_perPage).ToList();
+            var endIx = startIx + pageItems.Count;
+
+            @if (ActiveClient.HasActive)
+            {
+                <div class="ctx-strip" style="margin:14px 18px 0">
+                    <span class="ctx-tag">Working as</span>
+                    <span class="ctx-name"><strong>@ActiveClient.DisplayName</strong> <span class="mono">@ActiveClient.DisplayId</span></span>
+                    <span class="ctx-sub">@ActiveClient.DisplaySubtitle</span>
+                </div>
+            }
+
+            <div class="fcl-meta">
+                Showing <strong>@(total == 0 ? 0 : startIx + 1)</strong> – <strong>@endIx</strong> of <strong>@total</strong> records
+            </div>
+
+            <div class="fcl-table-wrap">
+                <table class="fcl-table">
+                    <thead>
+                        <tr>
+                            <th>Client Name</th>
+                            <th>Funding Commitment ID</th>
+                            <th>Total Funding Amount</th>
+                            <th>Status</th>
+                            <th>Created On</th>
+                            <th>Created By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in pageItems)
+                        {
+                            var rv = r;
+                            var st = StatusInfo.For(rv.Status);
+                            var pf = !string.IsNullOrEmpty(rv.PermanentFundingId) ? Pf.FindById(rv.PermanentFundingId!) : null;
+                            <tr style="cursor:pointer" @onclick="() => OpenFc(rv)">
+                                <td><strong>@(rv.Association == AssociationType.Client ? $"Client {rv.ClientId}" : rv.ClientName)</strong></td>
+                                <td class="mono">@($"{rv.CommitId}–{rv.ClientId}–{rv.FiscalYear.Replace("FY", "")}")</td>
+                                <td class="num mono">@Money(rv.TotalPlan == 0 ? rv.Total : rv.TotalPlan)</td>
+                                <td>
+                                    <span class="fcl-pill fcl-@st.Key">
+                                        <span class="fcl-pill-dot"></span>@st.Label
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fcl-date">@rv.Date</div>
+                                    <div class="fcl-time muted">@rv.Time</div>
+                                </td>
+                                <td>@rv.Creator</td>
+                            </tr>
+                        }
+                        @if (pageItems.Count == 0)
+                        {
+                            <tr><td colspan="6" class="muted" style="text-align:center;padding:34px">No funding commitments match the current filters.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="fcl-pager">
+                <div class="fcl-pager-info">Page <strong>@_page</strong> of <strong>@totalPages</strong></div>
+                <div style="flex:1"></div>
+                <button class="btn fcl-pager-btn" disabled="@(_page == 1)" @onclick="() => GoToPage(_page - 1)">‹ PREVIOUS</button>
+                <button class="btn fcl-pager-btn" disabled="@(_page == totalPages)" @onclick="() => GoToPage(_page + 1)">NEXT ›</button>
+            </div>
+        }
+    </div>
+</section>
+
+<FullDetailView @ref="_fullView" />
+
+@code {
+    private string _view = "all";
+    private string _search = "";
+    private string _fyFilter = "";
+    private string _creatorFilter = "";
+    private bool _filtersOpen;
+    private int _perPage = 10;
+    private int _page = 1;
+
+    private FullDetailView? _fullView;
+
+    protected override void OnInitialized()
+    {
+        Fc.OnChange += R;
+        ActiveClient.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FundingCommitment> Scoped()
+    {
+        var src = Fc.VisibleToCurrent();
+        if (ActiveClient.HasActive)
+        {
+            if (ActiveClient.Kind == ActiveContextKind.Client)
+            {
+                var cid = ActiveClient.ActiveClient!.EtoId;
+                src = src.Where(r => r.Association == AssociationType.Client && r.ClientId == cid);
+            }
+            else if (ActiveClient.Kind == ActiveContextKind.Project)
+            {
+                var pid = ActiveClient.ActiveProject!.Id;
+                src = src.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == pid);
+            }
+        }
+        return src;
+    }
+
+    private IEnumerable<FundingCommitment> Filtered()
+    {
+        var src = Scoped();
+        src = _view switch
+        {
+            "draft"    => src.Where(r => r.Status == CommitmentStatus.Draft),
+            "pending"  => src.Where(r => IsPending(r.Status)),
+            "approved" => src.Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active),
+            "rejected" => src.Where(r => r.Status == CommitmentStatus.Rejected),
+            _ => src
+        };
+        if (!string.IsNullOrEmpty(_fyFilter)) src = src.Where(r => r.FiscalYear == _fyFilter);
+        if (!string.IsNullOrEmpty(_creatorFilter)) src = src.Where(r => r.Creator == _creatorFilter);
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        if (!string.IsNullOrEmpty(q))
+        {
+            src = src.Where(r =>
+                (r.CommitId + " " + r.ClientName + " " + r.LinkedEntityId + " " + string.Join(" ", r.Services.Select(s => s.Vendor))).ToLowerInvariant().Contains(q));
+        }
+        return src.OrderByDescending(r => r.Date);
+    }
+
+    private IEnumerable<string> AllFiscalYears() =>
+        Scoped().Select(r => r.FiscalYear).Distinct().OrderBy(x => x);
+
+    private IEnumerable<string> AllCreators() =>
+        Scoped().Select(r => r.Creator).Distinct().OrderBy(x => x);
+
+    private void OnFilterChanged() { _page = 1; }
+    private void OnPerPageChanged() { _page = 1; }
+    private void GoToPage(int p) { _page = p; }
+
+    private void ResetFilters()
+    {
+        _view = "all";
+        _search = "";
+        _fyFilter = "";
+        _creatorFilter = "";
+        _page = 1;
+    }
+
+    private void OpenFc(FundingCommitment r) => _fullView?.Open(r.CommitId, "details");
+
+    private static bool IsPending(CommitmentStatus s) =>
+        s is CommitmentStatus.Pending or CommitmentStatus.Awaiting or CommitmentStatus.Special
+          or CommitmentStatus.Finance or CommitmentStatus.Ministry;
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    public void Dispose()
+    {
+        Fc.OnChange -= R;
+        ActiveClient.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

@@ -1,0 +1,290 @@
+@inject FundingCommitmentService FcSvc
+@inject ProjectService Projects
+@inject ClientDirectoryService Clients
+@inject PermanentFundingService Pf
+@inject ToastService Toasts
+@inject UserContextService UserCtx
+
+@if (_open)
+{
+    <div class="modal-overlay" @onclick="Close"></div>
+    <div class="modal-card" @onclick:stopPropagation="true">
+        <header class="modal-head">
+            <div>
+                <div class="modal-eyebrow">New Funding Commitment</div>
+                <h2>Step @(_step) of 3 · @StepTitle()</h2>
+            </div>
+            <button class="bd-close" @onclick="Close" title="Close" aria-label="Close dialog">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+        </header>
+
+        <div class="modal-body">
+            @if (_step == 1)
+            {
+                <p class="modal-hint">Choose how this funding will be associated. Both paths share the same workflow, tables, and audit trail (FRD §2.1).</p>
+                <div class="choice-grid">
+                    <button class="choice-card @(_assoc == AssociationType.Client ? "on" : "")" @onclick="() => _assoc = AssociationType.Client">
+                        <div class="ic">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                        </div>
+                        <div class="ttl">Client-Based Funding</div>
+                        <div class="sub">Look up via ETO Client ID.</div>
+                    </button>
+                    <button class="choice-card @(_assoc == AssociationType.Project ? "on" : "")" @onclick="() => _assoc = AssociationType.Project">
+                        <div class="ic">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18" /></svg>
+                        </div>
+                        <div class="ttl">Project-Based Funding</div>
+                        <div class="sub">Pick a project or create one inline.</div>
+                    </button>
+                </div>
+            }
+            else if (_step == 2 && _assoc == AssociationType.Client)
+            {
+                <p class="modal-hint">Enter the ETO Client ID. The system will fetch client details.</p>
+                <div class="modal-row">
+                    <label class="modal-lbl">ETO Client ID</label>
+                    <div class="modal-input-row">
+                        <input class="modal-input" placeholder="e.g. 20716" @bind="_etoId" @bind:event="oninput" />
+                        <button class="btn primary" @onclick="LookupClient" disabled="@string.IsNullOrWhiteSpace(_etoId)">Fetch</button>
+                    </div>
+                </div>
+                @if (_lookupTried)
+                {
+                    @if (_foundClient != null)
+                    {
+                        <div class="modal-result">
+                            <div class="row1"><strong>@_foundClient.FullName</strong> <span class="muted">#@_foundClient.EtoId</span></div>
+                            <div class="row2">DOB @_foundClient.Dob · @_foundClient.City · Guardian: @(_foundClient.Guardian == "" ? "—" : _foundClient.Guardian)</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="modal-result error">No client found for ETO ID “@_etoId”. (Try 20716, 84291, 23343, 10245, 67234.)</div>
+                    }
+                }
+            }
+            else if (_step == 2 && _assoc == AssociationType.Project)
+            {
+                <p class="modal-hint">Pick an existing project or create a new one inline.</p>
+                @if (!_creatingProject)
+                {
+                    <div class="modal-row">
+                        <label class="modal-lbl">Existing Project</label>
+                        <select class="modal-input" @bind="_projectId">
+                            <option value="">— Select a project —</option>
+                            @foreach (var p in Projects.Projects)
+                            {
+                                <option value="@p.Id">@p.Name · @p.Code</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="modal-row" style="margin-top:10px">
+                        <button class="btn" @onclick="() => _creatingProject = true">+ Create new project</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="modal-grid-2">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Project name</label>
+                            <input class="modal-input" @bind="_newProjectName" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Code</label>
+                            <input class="modal-input" @bind="_newProjectCode" placeholder="PRJ-X-2026" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Sponsor</label>
+                            <input class="modal-input" @bind="_newProjectSponsor" placeholder="MCCSS" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Project Manager</label>
+                            <input class="modal-input" @bind="_newProjectManager" placeholder="Manager Name" />
+                        </div>
+                        <div class="modal-row" style="grid-column:span 2">
+                            <label class="modal-lbl">Description</label>
+                            <input class="modal-input" @bind="_newProjectDesc" />
+                        </div>
+                    </div>
+                    <div class="modal-row" style="margin-top:8px">
+                        <button class="btn ghost" @onclick="() => _creatingProject = false">Cancel new project</button>
+                    </div>
+                }
+            }
+            else if (_step == 3)
+            {
+                <p class="modal-hint">Select a Permanent Funding source (FRD §6.5). This becomes the parent for budget tracking and rollover.</p>
+                <div class="modal-row">
+                    <label class="modal-lbl">Permanent Funding</label>
+                    <select class="modal-input" @bind="_pfId">
+                        <option value="">— Optional · choose later —</option>
+                        @foreach (var pf in EligiblePfs())
+                        {
+                            <option value="@pf.Id">@pf.Reference · @pf.LinkedEntityName · @pf.Program · @pf.BudgetAmount.ToString("C0")</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Fiscal Year</label>
+                    <input class="modal-input" @bind="_fiscalYear" />
+                </div>
+                <div class="modal-summary">
+                    <div class="row"><span class="lbl">Association</span><span>@(_assoc == AssociationType.Client ? "Client-Based" : "Project-Based")</span></div>
+                    <div class="row"><span class="lbl">Linked Entity</span><span>@SelectedDisplay()</span></div>
+                    <div class="row"><span class="lbl">Created By</span><span>@UserCtx.Effective.FullName · @RoleInfo.Label(UserCtx.Effective.Role)</span></div>
+                </div>
+            }
+        </div>
+
+        <footer class="modal-foot">
+            <button class="btn ghost" @onclick="Close">Cancel</button>
+            <div style="flex:1"></div>
+            @if (_step > 1)
+            {
+                <button class="btn" @onclick="Back">Back</button>
+            }
+            @if (_step < 3)
+            {
+                <button class="btn primary" @onclick="Next" disabled="@(!CanNext())">Next</button>
+            }
+            else
+            {
+                <button class="btn primary" @onclick="CreateDraft" disabled="@(!CanFinalize())">Create Draft FC</button>
+            }
+        </footer>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private int _step = 1;
+    private AssociationType _assoc = AssociationType.Client;
+
+    private string _etoId = "";
+    private bool _lookupTried;
+    private Client? _foundClient;
+
+    private string _projectId = "";
+    private bool _creatingProject;
+    private string _newProjectName = "";
+    private string _newProjectCode = "";
+    private string _newProjectSponsor = "MCCSS";
+    private string _newProjectManager = "";
+    private string _newProjectDesc = "";
+
+    private string _pfId = "";
+    private string _fiscalYear = "FY" + (DateTime.Now.Month >= 4 ? (DateTime.Now.Year + 1).ToString() : DateTime.Now.Year.ToString());
+
+    public bool IsOpen => _open;
+
+    public void Open()
+    {
+        _open = true;
+        _step = 1;
+        _assoc = AssociationType.Client;
+        _etoId = ""; _lookupTried = false; _foundClient = null;
+        _projectId = ""; _creatingProject = false;
+        _newProjectName = ""; _newProjectCode = ""; _newProjectSponsor = "MCCSS"; _newProjectManager = ""; _newProjectDesc = "";
+        _pfId = "";
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        StateHasChanged();
+    }
+
+    private string StepTitle() => _step switch
+    {
+        1 => "Choose funding type",
+        2 => _assoc == AssociationType.Client ? "Lookup client (ETO)" : "Select / create project",
+        3 => "Permanent funding & confirm",
+        _ => ""
+    };
+
+    private void LookupClient()
+    {
+        _foundClient = Clients.LookupEto(_etoId);
+        _lookupTried = true;
+    }
+
+    private bool CanNext()
+    {
+        if (_step == 1) return true;
+        if (_step == 2 && _assoc == AssociationType.Client) return _foundClient != null;
+        if (_step == 2 && _assoc == AssociationType.Project)
+        {
+            if (_creatingProject) return !string.IsNullOrWhiteSpace(_newProjectName);
+            return !string.IsNullOrEmpty(_projectId);
+        }
+        return false;
+    }
+
+    private bool CanFinalize() => !string.IsNullOrWhiteSpace(_fiscalYear);
+
+    private void Next()
+    {
+        if (!CanNext()) return;
+        if (_step == 2 && _assoc == AssociationType.Project && _creatingProject)
+        {
+            var p = Projects.Create(_newProjectName, _newProjectCode, _newProjectSponsor, _newProjectManager, _newProjectDesc);
+            _projectId = p.Id;
+            _creatingProject = false;
+        }
+        _step++;
+    }
+
+    private void Back()
+    {
+        if (_step > 1) _step--;
+    }
+
+    private IEnumerable<PermanentFunding> EligiblePfs()
+    {
+        if (_assoc == AssociationType.Client && _foundClient != null)
+            return Pf.Records.Where(p => p.Association == AssociationType.Client && p.LinkedEntityId == _foundClient.EtoId);
+        if (_assoc == AssociationType.Project && !string.IsNullOrEmpty(_projectId))
+            return Pf.Records.Where(p => p.Association == AssociationType.Project && p.LinkedEntityId == _projectId);
+        return Pf.Records;
+    }
+
+    private string SelectedDisplay()
+    {
+        if (_assoc == AssociationType.Client && _foundClient != null)
+            return $"{_foundClient.FullName} (#{_foundClient.EtoId})";
+        if (_assoc == AssociationType.Project)
+        {
+            var p = Projects.FindById(_projectId);
+            return p != null ? $"{p.Name} · {p.Code}" : "—";
+        }
+        return "—";
+    }
+
+    private void CreateDraft()
+    {
+        if (!CanFinalize()) return;
+        string linkedId, displayName;
+        if (_assoc == AssociationType.Client)
+        {
+            linkedId = _foundClient!.EtoId;
+            displayName = _foundClient.FullName;
+        }
+        else
+        {
+            var p = Projects.FindById(_projectId);
+            if (p == null) return;
+            linkedId = p.Id;
+            displayName = p.Name;
+        }
+
+        var fcId = FcSvc.CreateUnified(_assoc, linkedId, displayName,
+            permanentFundingId: string.IsNullOrEmpty(_pfId) ? null : _pfId,
+            fiscalYear: _fiscalYear,
+            fundingSource: "MCCSS");
+        Toasts.Show(ToastKind.Success, $"Draft FC {fcId} created for {displayName}");
+        Close();
+    }
+}

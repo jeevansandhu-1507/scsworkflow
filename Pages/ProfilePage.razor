@@ -1,0 +1,309 @@
+@page "/profile"
+@implements IDisposable
+@inject FundingCommitmentService Fc
+@inject InvoicingService Inv
+@inject VendorService Vendors
+@inject PermanentFundingService Pf
+@inject ClientDirectoryService Clients
+@inject ProjectService Projects
+@inject ActiveContextService ActiveCtx
+@inject UserContextService UserCtx
+@inject NavigationManager Nav
+@inject LocaleService L
+
+<PageTitle>SCS Portal · Profile</PageTitle>
+
+<section class="page">
+    @if (ActiveCtx.RequiresActive && !ActiveCtx.HasActive)
+    {
+        <div class="empty-state">
+            <div class="empty-title">No active client/project selected</div>
+            <div class="empty-sub">
+                Use <strong>Set Active Client</strong> in the top bar to load a client or project profile.
+            </div>
+        </div>
+    }
+    else if (!ActiveCtx.HasActive)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Profile unavailable</div>
+            <div class="empty-sub">Your role doesn't have a client/project context to view.</div>
+        </div>
+    }
+    else
+    {
+        var fcs = ScopedFcs().ToList();
+        var invs = ScopedInvoices().ToList();
+        var vendors = AssociatedVendors().ToList();
+        var pfs = ScopedPermanentFunding().ToList();
+        var committed = fcs.Sum(r => r.Total);
+        var planTotal = fcs.Sum(r => r.TotalPlan);
+
+        <div class="fcl-head">
+            <h1 class="fcl-title">👤 Profile · @ActiveCtx.DisplayName</h1>
+        </div>
+
+        @if (ActiveCtx.Kind == ActiveContextKind.Client)
+        {
+            var c = ActiveCtx.ActiveClient!;
+            <div class="db-card">
+                <div class="db-head"><h3>Client profile</h3></div>
+                <div class="kv-grid">
+                    <div class="kv"><span class="k">Full name</span><span class="v"><strong>@c.FullName</strong></span></div>
+                    <div class="kv"><span class="k">ETO ID</span><span class="v mono">#@c.EtoId</span></div>
+                    <div class="kv"><span class="k">DOB</span><span class="v mono">@c.Dob</span></div>
+                    <div class="kv"><span class="k">City</span><span class="v">@c.City</span></div>
+                    <div class="kv"><span class="k">Guardian</span><span class="v">@(string.IsNullOrEmpty(c.Guardian) ? "—" : c.Guardian)</span></div>
+                    <div class="kv"><span class="k">Email</span><span class="v">@(string.IsNullOrEmpty(c.Email) ? "—" : c.Email)</span></div>
+                    <div class="kv"><span class="k">Phone</span><span class="v">@(string.IsNullOrEmpty(c.Phone) ? "—" : c.Phone)</span></div>
+                    <div class="kv"><span class="k">Portal invite</span><span class="v"><span class="fcl-pill @InviteClass(c.InviteStatus)"><span class="fcl-pill-dot"></span>@c.InviteStatus</span></span></div>
+                </div>
+            </div>
+        }
+        else
+        {
+            var p = ActiveCtx.ActiveProject!;
+            <div class="db-card">
+                <div class="db-head"><h3>Project profile</h3></div>
+                <div class="kv-grid">
+                    <div class="kv"><span class="k">Name</span><span class="v"><strong>@p.Name</strong></span></div>
+                    <div class="kv"><span class="k">Code</span><span class="v mono">@p.Code</span></div>
+                    <div class="kv"><span class="k">Sponsor</span><span class="v">@p.Sponsor</span></div>
+                    <div class="kv"><span class="k">Manager</span><span class="v">@p.ManagerName</span></div>
+                    <div class="kv"><span class="k">Start</span><span class="v mono">@p.StartDate.ToString("MMM yyyy")</span></div>
+                    <div class="kv" style="grid-column:1 / -1"><span class="k">Description</span><span class="v">@p.Description</span></div>
+                </div>
+            </div>
+        }
+
+        <div class="profile-cards" style="margin-top:18px">
+            <!-- Vendors card -->
+            <div class="profile-card">
+                <div class="profile-card-head">
+                    <h3>👥 Vendors</h3>
+                    <span class="profile-card-ct">@vendors.Count</span>
+                </div>
+                <div class="profile-card-body">
+                    @if (vendors.Count == 0)
+                    {
+                        <div class="profile-empty">No vendors assigned yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var v in vendors.Take(4))
+                        {
+                            <div class="profile-item">
+                                <div class="profile-av">@VendorInitials(v.Name)</div>
+                                <div class="profile-item-body">
+                                    <div class="profile-item-title">@v.Name <span class="assoc-pill @(v.Type == VendorType.Isw ? "client" : "project")" style="font-size:9.5px">@(v.Type == VendorType.Isw ? "ISW" : "SP")</span></div>
+                                    <div class="profile-item-sub">@v.Contact · @v.Email</div>
+                                </div>
+                            </div>
+                        }
+                        @if (vendors.Count > 4)
+                        {
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/my-vendors")'>View all @vendors.Count vendors →</button>
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- FCs card -->
+            <div class="profile-card">
+                <div class="profile-card-head">
+                    <h3>📄 Funding Commitments</h3>
+                    <span class="profile-card-ct">@fcs.Count</span>
+                </div>
+                <div class="profile-card-body">
+                    @if (fcs.Count == 0)
+                    {
+                        <div class="profile-empty">No funding commitments yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var r in fcs.OrderByDescending(x => x.Date).Take(4))
+                        {
+                            var st = StatusInfo.For(r.Status);
+                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                                <div class="profile-item-body">
+                                    <div class="profile-item-title mono">@r.CommitId · @r.FiscalYear</div>
+                                    <div class="profile-item-sub">
+                                        <span class="status-pill @st.CssClass" style="padding:2px 7px;font-size:10px">@st.Label</span>
+                                        <span style="margin-left:6px">@(r.MccssTypes.FirstOrDefault() ?? "—")</span>
+                                    </div>
+                                </div>
+                                <div class="profile-item-amount mono">@r.Total.ToString("C0")</div>
+                            </div>
+                        }
+                        <div class="profile-foot">
+                            <span>Plan total · <strong>@Money(planTotal)</strong></span>
+                            <span>Committed · <strong>@Money(committed)</strong></span>
+                        </div>
+                        @if (fcs.Count > 4)
+                        {
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/funding-commitments")'>View all @fcs.Count FCs →</button>
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Invoices card -->
+            <div class="profile-card">
+                <div class="profile-card-head">
+                    <h3>🧾 Invoices</h3>
+                    <span class="profile-card-ct">@invs.Count</span>
+                </div>
+                <div class="profile-card-body">
+                    @if (invs.Count == 0)
+                    {
+                        <div class="profile-empty">No invoices yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var i in invs.OrderByDescending(x => x.Date).Take(4))
+                        {
+                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("/invoices")'>
+                                <div class="profile-item-body">
+                                    <div class="profile-item-title mono">@i.Number</div>
+                                    <div class="profile-item-sub">
+                                        <span class="status-pill @InvClass(i.Status)" style="padding:2px 7px;font-size:10px">@i.Status</span>
+                                        <span style="margin-left:6px">@i.VendorName</span>
+                                    </div>
+                                </div>
+                                <div class="profile-item-amount mono">@i.Total.ToString("C2")</div>
+                            </div>
+                        }
+                        @if (invs.Count > 4)
+                        {
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/invoices")'>View all @invs.Count invoices →</button>
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Permanent Funding card (Finance / Admin only) -->
+            @if (UserCtx.IsFinance || UserCtx.IsAdmin)
+            {
+                <div class="profile-card">
+                    <div class="profile-card-head">
+                        <h3>🏦 Permanent Funding</h3>
+                        <span class="profile-card-ct">@pfs.Count</span>
+                    </div>
+                    <div class="profile-card-body">
+                        @if (pfs.Count == 0)
+                        {
+                            <div class="profile-empty">No permanent funding records yet.</div>
+                        }
+                        else
+                        {
+                            @foreach (var pf in pfs.Take(4))
+                            {
+                                <div class="profile-item" style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"/permanent-funding/{pf.Id}"))">
+                                    <div class="profile-item-body">
+                                        <div class="profile-item-title mono">@pf.Reference</div>
+                                        <div class="profile-item-sub">@pf.Program · @pf.FiscalYear · @pf.FundingStatusLabel</div>
+                                    </div>
+                                    <div class="profile-item-amount mono">@pf.BudgetAmount.ToString("C0")</div>
+                                </div>
+                            }
+                            @if (pfs.Count > 4)
+                            {
+                                <button class="profile-link" @onclick='() => Nav.NavigateTo("/permanent-funding")'>View all @pfs.Count PFs →</button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ActiveCtx.OnChange += R;
+        Fc.OnChange += R;
+        Inv.OnChange += R;
+        Pf.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FundingCommitment> ScopedFcs()
+    {
+        if (!ActiveCtx.HasActive) return Array.Empty<FundingCommitment>();
+        if (ActiveCtx.Kind == ActiveContextKind.Client)
+        {
+            var cid = ActiveCtx.ActiveClient!.EtoId;
+            return Fc.Rows.Where(r => r.Association == AssociationType.Client && r.ClientId == cid);
+        }
+        var pid = ActiveCtx.ActiveProject!.Id;
+        return Fc.Rows.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == pid);
+    }
+
+    private IEnumerable<Invoice> ScopedInvoices()
+    {
+        var fcIds = ScopedFcs().Select(r => r.CommitId).ToHashSet();
+        return Inv.Invoices.Where(i => fcIds.Contains(i.FcId) ||
+            (ActiveCtx.HasActive && i.LinkedEntityName.Equals(ActiveCtx.DisplayName, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private IEnumerable<Vendor> AssociatedVendors()
+    {
+        var names = ScopedFcs()
+            .SelectMany(r => r.Services.Select(s => s.Vendor))
+            .Where(n => !string.IsNullOrEmpty(n) && n != "Unassigned")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return Vendors.Vendors.Where(v => names.Contains(v.Name)).OrderBy(v => v.Name);
+    }
+
+    private IEnumerable<PermanentFunding> ScopedPermanentFunding()
+    {
+        if (!ActiveCtx.HasActive) return Array.Empty<PermanentFunding>();
+        if (ActiveCtx.Kind == ActiveContextKind.Client)
+            return Pf.Records.Where(p => p.Association == AssociationType.Client && p.LinkedEntityId == ActiveCtx.ActiveClient!.EtoId);
+        return Pf.Records.Where(p => p.Association == AssociationType.Project && p.LinkedEntityId == ActiveCtx.ActiveProject!.Id);
+    }
+
+    private static string VendorInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpper();
+    }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string InvClass(InvoiceStatus s) => s switch
+    {
+        InvoiceStatus.Draft => "st-draft",
+        InvoiceStatus.Submitted => "st-pending",
+        InvoiceStatus.Approved => "st-approved",
+        InvoiceStatus.Paid => "st-active",
+        InvoiceStatus.Rejected => "st-rejected",
+        _ => "st-draft"
+    };
+
+    private static string InviteClass(InviteStatus s) => s switch
+    {
+        InviteStatus.NotInvited => "fcl-draft",
+        InviteStatus.Invited => "fcl-pending",
+        InviteStatus.Accepted => "fcl-approved",
+        InviteStatus.Expired => "fcl-rejected",
+        _ => "fcl-draft"
+    };
+
+    public void Dispose()
+    {
+        ActiveCtx.OnChange -= R;
+        Fc.OnChange -= R;
+        Inv.OnChange -= R;
+        Pf.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

@@ -1,0 +1,63 @@
+@implements IDisposable
+@inject FundingCommitmentService Svc
+@inject ToastService Toasts
+
+<div class="selection-bar @(_selCount > 0 ? "visible" : "")">
+    <div class="ct">
+        <div class="row1"><strong>@_selCount</strong> selected</div>
+        <div class="row2">@_uniqueClients client@(_uniqueClients == 1 ? "" : "s") · @MoneyShort(_total) total</div>
+    </div>
+    <div class="divider"></div>
+    <button @onclick="ClearSelection">Clear <span class="kbd">ESC</span></button>
+    <button @onclick="OnBulkEditClicked">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+        Bulk Edit <span class="kbd">E</span>
+    </button>
+    <button class="approve" @onclick="BulkApprove">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5" /></svg>
+        Approve Selected <span class="kbd">⇧A</span>
+    </button>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnBulkEdit { get; set; }
+
+    private int _selCount;
+    private int _uniqueClients;
+    private decimal _total;
+
+    protected override void OnInitialized()
+    {
+        Svc.OnChange += Refresh;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var sel = Svc.SelectedRows.ToList();
+        _selCount = sel.Count;
+        _uniqueClients = sel.Select(r => r.ClientId).Distinct().Count();
+        _total = sel.Sum(r => r.Total);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearSelection() => Svc.ClearSelection();
+
+    private async Task OnBulkEditClicked() => await OnBulkEdit.InvokeAsync();
+
+    private void BulkApprove()
+    {
+        var n = Svc.BulkApprovableSelectedCount;
+        if (n == 0)
+        {
+            Toasts.Show(ToastKind.Warning, "No selected commitments to approve");
+            return;
+        }
+        Svc.BulkApproveSelected();
+        Toasts.Show(ToastKind.Success, $"{n} commitment{(n == 1 ? "" : "s")} approved");
+    }
+
+    private static string MoneyShort(decimal n) => "$" + n.ToString("N0");
+
+    public void Dispose() => Svc.OnChange -= Refresh;
+}

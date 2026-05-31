@@ -1,0 +1,582 @@
+@page "/permanent-funding/new"
+@implements IDisposable
+@inject PermanentFundingService Pf
+@inject FundingCommitmentService Fc
+@inject ClientDirectoryService Clients
+@inject ProjectService Projects
+@inject VendorService Vendors
+@inject ActiveContextService Context
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · Permanent Funding — Edit</PageTitle>
+
+<section class="page wizard-page-wide">
+    @if (!UserCtx.IsFinance && !UserCtx.IsAdmin)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Finance only</div>
+            <div class="empty-sub">Permanent Funding records can only be created by Finance or Admin roles.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/permanent-funding")'>Back</button>
+        </div>
+    }
+    else
+    {
+        <div class="pf-edit-card">
+            <header class="pf-edit-head" style="display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);padding:16px 24px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+                <h1 style="font-size:16px;font-weight:600;margin:0;color:var(--brand-700)">Permanent Funding — Edit</h1>
+                <span class="status-pill st-draft" style="margin-left:8px">@_draft.FundingStatusLabel</span>
+                @if (_draft.FundingTargetType == "Client" && !string.IsNullOrEmpty(_draft.LinkedEntityName))
+                {
+                    <button class="btn" style="margin-left: auto; background: var(--brand-50); border: 1px solid var(--brand-200); color: var(--brand-700); font-weight: 600" @onclick="SyncZoho">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; vertical-align:middle"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                        Zoho Books: Sync project & budget
+                    </button>
+                }
+                else
+                {
+                    <span class="muted" style="margin-left:auto;font-size:11.5px">@DateTime.Now.ToString("dd-MMM-yyyy · HH:mm")</span>
+                }
+            </header>
+
+            <!-- Case Metadata -->
+            <section class="pf-sec">
+                <h3 class="pf-sec-h">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>
+                    Case Metadata
+                </h3>
+                <div class="pf-grid-3">
+                    <div class="modal-row">
+                        <label class="modal-lbl">Funding target</label>
+                        <select class="modal-input" value="@_draft.FundingTargetType" @onchange="OnFundingTargetTypeChanged">
+                            <option value="Client">Client</option>
+                            <option value="Vendor">Vendor</option>
+                            <option value="Finance">Finance</option>
+                        </select>
+                    </div>
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">
+                            @(_draft.FundingTargetType == "Client" ? "Client" : "Display Name")
+                        </label>
+                        @if (_draft.FundingTargetType == "Client")
+                        {
+                            <select class="modal-input" value="@_draft.LinkedEntityId" @onchange="OnClientSelected">
+                                <option value="">Select client…</option>
+                                @foreach (var c in Clients.Clients)
+                                {
+                                    <option value="@c.EtoId">@c.FullName</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <select class="modal-input" value="@_draft.VendorId" @onchange="OnVendorSelected">
+                                <option value="">Select vendor…</option>
+                                @foreach (var v in Vendors.Vendors.Where(x => x.Status == VendorStatus.Approved))
+                                {
+                                    <option value="@v.Id">@v.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">
+                            @(_draft.FundingTargetType == "Client" ? "Client ID (ETO)" : "Target ID")
+                        </label>
+                        <div class="pf-readout mono">@_draft.LinkedEntityId</div>
+                    </div>
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">Funding status</label>
+                        <select class="modal-input" @bind="_draft.FundingStatusLabel">
+                            @foreach (var s in PfCatalog.FundingStatusLabels) { <option value="@s">@s</option> }
+                        </select>
+                    </div>
+
+                    @if (_draft.AllocationTypes.Contains("Residential"))
+                    {
+                        <div class="modal-row">
+                            <label class="modal-lbl">Residential placement type</label>
+                            <select class="modal-input" @bind="_draft.ResidentialPlacementType">
+                                <option value="">Select placement type…</option>
+                                @foreach (var p in Catalog.ResidentialPlacements)
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">Include in future year rollover</label>
+                        <label style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px;cursor:pointer">
+                            <input type="checkbox" @bind="_draft.RolloverEligible" />
+                            <span>Eligible</span>
+                        </label>
+                    </div>
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">Project active status</label>
+                        <select class="modal-input" @bind="_draft.ProjectActiveStatus">
+                            <option value="">—</option>
+                            @foreach (var s in PfCatalog.ProjectActiveStatuses) { <option value="@s">@s</option> }
+                        </select>
+                    </div>
+
+                    <div class="modal-row">
+                        <label class="modal-lbl">Status</label>
+                        <div>
+                            <span class="status-pill st-draft">@_draft.FundingStatusLabel</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Allocation Sections -->
+            <section class="pf-sec pf-sec-shaded">
+                <h3 class="pf-sec-h">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 17l10 5 10-5M2 12l10 5 10-5M12 2 2 7l10 5 10-5z" /></svg>
+                    Select Allocation Type(s)
+                </h3>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+                    <label style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;cursor:pointer">
+                        <input type="checkbox" checked='@_draft.AllocationTypes.Contains("Residential")' @onchange='() => ToggleSection("Residential")' />
+                        Residential Allocation
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;cursor:pointer">
+                        <input type="checkbox" checked='@_draft.AllocationTypes.Contains("CP")' @onchange='() => ToggleSection("CP")' />
+                        CP Allocation
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;cursor:pointer">
+                        <input type="checkbox" checked='@_draft.AllocationTypes.Contains("Operational")' @onchange='() => ToggleSection("Operational")' />
+                        SCS Operational Allocation
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;cursor:pointer">
+                        <input type="checkbox" checked='@_draft.AllocationTypes.Contains("Passport")' @onchange='() => ToggleSection("Passport")' />
+                        Passport and Historical Respite Allocation
+                    </label>
+                </div>
+            </section>
+
+            <!-- Allocation Details -->
+            @if (_draft.AllocationTypes.Contains("Residential"))
+            {
+                <section class="pf-sec">
+                    <h3 class="pf-sec-h" style="color:var(--brand-700)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+                        Residential Allocation
+                    </h3>
+                    <div class="pf-grid-3">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Ministry Approved Allocation — Residential (A) <span style="color:var(--danger)">*</span></label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.MinistryApprovedAllocationResidential" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5905 - Unrestricted-MCCSS- Residential</div>
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">SCS Permanent Pressure Approval — Residential</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.SCSPermanentPressureApprovalResidential" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5810 - Fiscal Residential Pressure</div>
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl" style="color:var(--brand-700)">Total Approved Permanent Allocation — Residential</label>
+                            <div class="pf-readout pf-total mono">@_draft.TotalApprovedPermanentAllocationResidential.ToString("C2")</div>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            @if (_draft.AllocationTypes.Contains("CP"))
+            {
+                <section class="pf-sec">
+                    <h3 class="pf-sec-h" style="color:var(--brand-700)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        CP Allocation
+                    </h3>
+                    <div class="pf-grid-3">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Ministry Approved Allocation — CP <span style="color:var(--danger)">*</span></label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.MinistryApprovedAllocationCP" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5910 - Unrestricted - MCCSS- Community Participation</div>
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">SCS Permanent Pressure Approval — CP</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.SCSPermanentPressureApprovalCP" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5820 - Fiscal Community Participation Pressure</div>
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl" style="color:var(--brand-700)">Total Approved Permanent Allocation — CP</label>
+                            <div class="pf-readout pf-total mono">@_draft.TotalApprovedPermanentAllocationCP.ToString("C2")</div>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            @if (_draft.AllocationTypes.Contains("Operational"))
+            {
+                <section class="pf-sec">
+                    <h3 class="pf-sec-h" style="color:var(--brand-700)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                        SCS Operational Allocation
+                    </h3>
+                    <div class="pf-grid-3">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Ministry Approved CM Allocation Amount</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.MinistryApprovedCMAllocationAmount" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Ministry Approved ACA Allocation Amount</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.MinistryApprovedACAAllocationAmount" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl" style="color:var(--brand-700)">Total Ministry Approved Operational Load</label>
+                            <div class="pf-readout pf-total mono">@_draft.TotalMinistryApprovedOperationalLoad.ToString("C2")</div>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            @if (_draft.AllocationTypes.Contains("Passport"))
+            {
+                <section class="pf-sec">
+                    <h3 class="pf-sec-h" style="color:var(--brand-700)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                        Passport and Historical Respite Allocation
+                    </h3>
+                    <div style="background:var(--brand-50); border: 1px solid var(--brand-200); color: var(--brand-700); padding: 12px; border-radius: 4px; font-size: 13px; margin-bottom: 16px">
+                        Permanent non-Ministry funding. Changes require Finance approval and are fully auditable.
+                    </div>
+                    <div class="pf-grid-3">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Approved Passport Allocation</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.ApprovedPassportAllocation" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5965 - Unrestricted - Passport</div>
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Historical Respite Allocation</label>
+                            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                                   @bind="_draft.HistoricalRespiteAllocation" />
+                            <div style="font-size:11px;color:var(--brand-700);margin-top:4px;font-family:monospace">GL: 5940 - Unrestricted Plan-Historical</div>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            <!-- Governance & Documentation -->
+            <section class="pf-sec">
+                <h3 class="pf-sec-h">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M9 14h6M9 18h4" /></svg>
+                    Governance &amp; Documentation
+                </h3>
+                <div class="pf-grid-1">
+                    <div class="modal-row">
+                        <label class="modal-lbl">Justification Category <span style="color:var(--danger)">*</span></label>
+                        <select class="modal-input" @bind="_draft.JustificationCategory">
+                            <option value="">Select your answer</option>
+                            @foreach (var j in PfCatalog.JustificationCategories) { <option value="@j">@j</option> }
+                        </select>
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Funding Note</label>
+                        <textarea class="modal-input wiz-textarea" placeholder="Enter additional information if required" @bind="_draft.Notes"></textarea>
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Ministry Approval Attachment <span style="color:var(--danger)">*</span></label>
+                        <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">Mandatory: Upload the PDF or document with Ministry approval.</div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input class="modal-input" style="max-width:380px" placeholder="No file chosen — type a filename to mock-upload"
+                                   @bind="_draft.MinistryApprovalAttachment" />
+                            @if (!string.IsNullOrEmpty(_draft.MinistryApprovalAttachment))
+                            {
+                                <span class="muted" style="font-size:11px">📎 @_draft.MinistryApprovalAttachment</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <footer class="pf-edit-foot">
+            <div style="flex:1"></div>
+            <button class="btn ghost" @onclick="Cancel">CANCEL</button>
+            <button class="btn" @onclick="SaveDraft">SAVE DRAFT</button>
+            <button class="btn primary" @onclick="SubmitForApproval" disabled="@(!CanSubmit())">SUBMIT FOR APPROVAL</button>
+        </footer>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery] public string? SourceFcId { get; set; }
+
+    private PermanentFunding _draft = new();
+
+    protected override void OnInitialized()
+    {
+        Context.OnChange += R;
+        Init();
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void Init()
+    {
+        var fcId = SourceFcId;
+        FundingCommitment? sourceFc = null;
+        if (!string.IsNullOrEmpty(fcId)) sourceFc = Fc.FindByCommitId(fcId);
+
+        if (sourceFc != null)
+        {
+            // Validation 1: FC must be Pending Ministry Approval or CSN Youth to link or prefill.
+            if (sourceFc.Status != CommitmentStatus.Ministry && sourceFc.Status != CommitmentStatus.Csn)
+            {
+                Toasts.Show(ToastKind.Warning, "Funding Commitment must be in Pending Ministry Approval or CSN Youth status to convert.");
+                Nav.NavigateTo("/permanent-funding");
+                return;
+            }
+
+            // Validation 2: Client profile Funding Status must be Permanent or Pending Ministry Approval.
+            var client = Clients.LookupEto(sourceFc.ClientId);
+            if (client != null && !client.FundingStatus.Equals("Permanent", StringComparison.OrdinalIgnoreCase) && !client.FundingStatus.Equals("Pending Ministry Approval", StringComparison.OrdinalIgnoreCase))
+            {
+                Toasts.Show(ToastKind.Warning, "Client profile Funding Status must be Permanent or Pending Ministry Approval to convert.");
+                Nav.NavigateTo("/permanent-funding");
+                return;
+            }
+
+            var statusLabel = "Draft";
+            if (sourceFc.Status == CommitmentStatus.Ministry)
+            {
+                statusLabel = "Pending Ministry Approval";
+            }
+            else if (sourceFc.Status == CommitmentStatus.Csn)
+            {
+                statusLabel = "CSN Youth";
+            }
+
+            _draft = new PermanentFunding
+            {
+                SourceFundingCommitmentId = sourceFc.CommitId,
+                Reference = $"{sourceFc.CommitId}-{sourceFc.ClientId}-{DateTime.Now:MM-dd-yyyy}",
+                Association = sourceFc.Association,
+                LinkedEntityId = sourceFc.Association == AssociationType.Client ? sourceFc.ClientId : sourceFc.LinkedEntityId,
+                LinkedEntityName = sourceFc.ClientName,
+                FundingSource = sourceFc.FundingSource,
+                Ministry = sourceFc.Ministry,
+                Program = sourceFc.MccssTypes.FirstOrDefault() ?? "Passport Funding",
+                FiscalYear = sourceFc.FiscalYear,
+                EffectiveStart = DateTime.TryParse(sourceFc.PlanStart, out var ps) ? ps : DateTime.Today,
+                EffectiveEnd = DateTime.TryParse(sourceFc.PlanEnd, out var pe) ? pe : DateTime.Today.AddYears(1),
+                FundingStatusLabel = statusLabel,
+                ResidentialPlacementType = sourceFc.Placement,
+                RolloverEligible = true,
+                FundingTargetType = "Client",
+                AllocationTypes = new List<string>()
+            };
+
+            // Map and suggest amounts/sections based on the FC details
+            var resServiceSum = sourceFc.Services.Where(s => s.Plan == "MCCSS Fiscal Residential Funding Allocation").Sum(s => s.LineTotal);
+            var cpServiceSum = sourceFc.Services.Where(s => s.Plan == "MCCSS Fiscal Community Participation Funding Allocation").Sum(s => s.LineTotal);
+            var csnServiceSum = sourceFc.Services.Where(s => s.Plan == "Temporary Funding Allocation - Complex Special Needs (CSN)").Sum(s => s.LineTotal);
+
+            sourceFc.PlanAmounts.TryGetValue("MCCSS Fiscal Residential Funding Allocation", out var resAmount);
+            sourceFc.PlanAmounts.TryGetValue("MCCSS Fiscal Community Participation Funding Allocation", out var cpAmount);
+            sourceFc.PlanAmounts.TryGetValue("Temporary Funding Allocation - Complex Special Needs (CSN)", out var csnAmount);
+
+            if (resAmount > 0 || resServiceSum > 0)
+            {
+                _draft.AllocationTypes.Add("Residential");
+                _draft.MinistryApprovedAllocationResidential = resAmount > 0 ? resAmount : resServiceSum;
+            }
+            if (cpAmount > 0 || cpServiceSum > 0)
+            {
+                _draft.AllocationTypes.Add("CP");
+                _draft.MinistryApprovedAllocationCP = cpAmount > 0 ? cpAmount : cpServiceSum;
+            }
+            if (csnAmount > 0 || csnServiceSum > 0)
+            {
+                _draft.AllocationTypes.Add("Operational");
+                _draft.MinistryApprovedCMAllocationAmount = csnAmount > 0 ? csnAmount : csnServiceSum;
+            }
+
+            if (sourceFc.MainFunder.StartsWith("Passport", StringComparison.OrdinalIgnoreCase))
+            {
+                _draft.AllocationTypes.Add("Passport");
+                sourceFc.PlanAmounts.TryGetValue(sourceFc.MainFunder, out var passportAmt);
+                _draft.ApprovedPassportAllocation = passportAmt > 0 ? passportAmt : sourceFc.TotalPlan;
+            }
+
+            if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pAmt))
+            {
+                if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
+                _draft.ApprovedPassportAllocation = pAmt;
+            }
+            if (sourceFc.PlanAmounts.TryGetValue("Historical Respite", out var hAmt))
+            {
+                if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
+                _draft.HistoricalRespiteAllocation = hAmt;
+            }
+        }
+        else if (Context.HasActive)
+        {
+            if (Context.Kind == ActiveContextKind.Client)
+            {
+                _draft = new PermanentFunding
+                {
+                    Reference = $"PF-{DateTime.Now:yyyy-MM-dd}-{Context.ActiveClient!.EtoId}",
+                    Association = AssociationType.Client,
+                    LinkedEntityId = Context.ActiveClient.EtoId,
+                    LinkedEntityName = Context.ActiveClient.FullName,
+                    FundingStatusLabel = "Draft",
+                    RolloverEligible = true,
+                    FundingTargetType = "Client"
+                };
+            }
+            else
+            {
+                _draft = new PermanentFunding
+                {
+                    Reference = $"PF-{DateTime.Now:yyyy-MM-dd}-{Context.ActiveProject!.Code}",
+                    Association = AssociationType.Project,
+                    LinkedEntityId = Context.ActiveProject.Id,
+                    LinkedEntityName = Context.ActiveProject.Name,
+                    FundingStatusLabel = "Draft",
+                    RolloverEligible = true,
+                    FundingTargetType = "Finance"
+                };
+            }
+        }
+
+        if (_draft.AllocationTypes.Count == 0)
+        {
+            _draft.AllocationTypes.Add("Residential");
+        }
+    }
+
+    private void OnFundingTargetTypeChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "Client";
+        _draft.FundingTargetType = val;
+        _draft.LinkedEntityId = "";
+        _draft.LinkedEntityName = "";
+        _draft.VendorId = null;
+        _draft.VendorName = null;
+    }
+
+    private void OnClientSelected(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        var c = Clients.LookupEto(val);
+        if (c != null)
+        {
+            _draft.LinkedEntityId = c.EtoId;
+            _draft.LinkedEntityName = c.FullName;
+        }
+        else
+        {
+            _draft.LinkedEntityId = "";
+            _draft.LinkedEntityName = "";
+        }
+    }
+
+    private void OnVendorSelected(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        var v = Vendors.FindById(val);
+        if (v != null)
+        {
+            _draft.VendorId = v.Id;
+            _draft.VendorName = v.Name;
+            _draft.LinkedEntityId = v.Id;
+            _draft.LinkedEntityName = v.Name;
+        }
+        else
+        {
+            _draft.VendorId = null;
+            _draft.VendorName = null;
+            _draft.LinkedEntityId = "";
+            _draft.LinkedEntityName = "";
+        }
+    }
+
+    private void ToggleSection(string key)
+    {
+        if (!_draft.AllocationTypes.Contains(key))
+        {
+            _draft.AllocationTypes.Add(key);
+        }
+        else
+        {
+            _draft.AllocationTypes.Remove(key);
+            // Clear values when removing section
+            if (key == "Residential")
+            {
+                _draft.MinistryApprovedAllocationResidential = 0;
+                _draft.SCSPermanentPressureApprovalResidential = 0;
+                _draft.ResidentialPlacementType = "";
+            }
+            else if (key == "CP")
+            {
+                _draft.MinistryApprovedAllocationCP = 0;
+                _draft.SCSPermanentPressureApprovalCP = 0;
+            }
+            else if (key == "Operational")
+            {
+                _draft.MinistryApprovedCMAllocationAmount = 0;
+                _draft.MinistryApprovedACAAllocationAmount = 0;
+            }
+            else if (key == "Passport")
+            {
+                _draft.ApprovedPassportAllocation = 0;
+                _draft.HistoricalRespiteAllocation = 0;
+            }
+        }
+    }
+
+    private bool CanSubmit() =>
+        _draft.AllocationTypes.Count > 0
+        && _draft.TotalApprovedAllocation > 0
+        && !string.IsNullOrEmpty(_draft.JustificationCategory)
+        && !string.IsNullOrEmpty(_draft.MinistryApprovalAttachment);
+
+    private void SaveDraft()
+    {
+        _draft.FundingStatusLabel = "Draft";
+        var saved = Pf.Create(_draft, submitForApproval: false);
+        Toasts.Show(ToastKind.Success, $"Draft PF {saved.Reference} saved");
+        Nav.NavigateTo($"/permanent-funding/{saved.Id}");
+    }
+
+    private void SubmitForApproval()
+    {
+        if (!CanSubmit())
+        {
+            Toasts.Show(ToastKind.Warning, "Please fill all required fields before submitting.");
+            return;
+        }
+        var saved = Pf.Create(_draft, submitForApproval: true);
+        Toasts.Show(ToastKind.Success, $"PF {saved.Reference} submitted for Ministry approval");
+        Nav.NavigateTo($"/permanent-funding/{saved.Id}");
+    }
+
+    private void Cancel() => Nav.NavigateTo("/permanent-funding");
+
+    private void SyncZoho()
+    {
+        Toasts.Show(ToastKind.Success, "Zoho Books: Synced project & budget successfully");
+    }
+
+    public void Dispose()
+    {
+        Context.OnChange -= R;
+    }
+}

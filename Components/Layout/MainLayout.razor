@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+@inject ToastService Toasts
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<Sidebar />
+
+<main class="main" id="main-content" role="main" tabindex="-1" aria-label="Main content">
+    <Topbar />
+    @Body
+</main>
+
+<Toast />

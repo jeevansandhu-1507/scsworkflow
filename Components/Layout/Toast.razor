@@ -1,0 +1,51 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+<div class="toast @(_visible ? "show" : "") @_kindClass" id="toast"
+     role="@(_kindClass == "danger" || _kindClass == "warning" ? "alert" : "status")"
+     aria-live="@(_kindClass == "danger" || _kindClass == "warning" ? "assertive" : "polite")"
+     aria-atomic="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+        <path d="M20 6 9 17l-5-5" />
+    </svg>
+    <span class="sr-only">@(_kindClass == "danger" ? "Error: " : _kindClass == "warning" ? "Warning: " : "Notification: ")</span>
+    <span>@_message</span>
+</div>
+
+@code {
+    private bool _visible;
+    private string _message = "";
+    private string _kindClass = "";
+    private System.Threading.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        Toasts.OnShow += Handle;
+    }
+
+    private void Handle(ToastKind kind, string message)
+    {
+        _message = message;
+        _kindClass = kind switch
+        {
+            ToastKind.Warning => "warning",
+            ToastKind.Danger => "danger",
+            _ => "success"
+        };
+        _visible = true;
+        InvokeAsync(StateHasChanged);
+
+        _timer?.Dispose();
+        _timer = new System.Threading.Timer(_ =>
+        {
+            _visible = false;
+            InvokeAsync(StateHasChanged);
+        }, null, 1800, System.Threading.Timeout.Infinite);
+    }
+
+    public void Dispose()
+    {
+        Toasts.OnShow -= Handle;
+        _timer?.Dispose();
+    }
+}

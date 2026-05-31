@@ -1,0 +1,23 @@
+@if (Visible)
+{
+    <div class="status-menu" style="left:@(Left)px;top:@(Top)px;" @onclick:stopPropagation="true">
+        @foreach (var s in StatusInfo.All)
+        {
+            var info = StatusInfo.For(s);
+            var st = s;
+            <div class="opt" @onclick="() => Select(st)">
+                <span class="swatch" style="background:@info.Swatch;color:@info.Swatch"></span>
+                <span>@info.Label</span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public double Left { get; set; }
+    [Parameter] public double Top { get; set; }
+    [Parameter] public EventCallback<CommitmentStatus> OnSelect { get; set; }
+
+    private Task Select(CommitmentStatus s) => OnSelect.InvokeAsync(s);
+}

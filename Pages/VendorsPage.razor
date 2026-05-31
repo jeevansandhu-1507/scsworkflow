@@ -1,0 +1,79 @@
+@page "/vendors"
+@implements IDisposable
+@inject VendorService Vendors
+@inject FundingCommitmentService Fc
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.Vendors</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Vendors</div>
+            <h1>@L.T("Vendor directory", "Annuaire des fournisseurs")</h1>
+            <p class="sub">@L.T("ISWs and SPs assigned to commitments. Vendors only see records they're linked to (FRD §3.6).", "ISW et fournisseurs liés à des engagements.")</p>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="filter-chips">
+            <button class="chip @(_t == "" ? "active" : "")" @onclick='() => _t = ""'>All <span class="count">@Vendors.Vendors.Count</span></button>
+            <button class="chip @(_t == "isw" ? "active" : "")" @onclick='() => _t = "isw"'>ISW <span class="count">@Vendors.Vendors.Count(v => v.Type == VendorType.Isw)</span></button>
+            <button class="chip @(_t == "sp" ? "active" : "")" @onclick='() => _t = "sp"'>SP <span class="count">@Vendors.Vendors.Count(v => v.Type == VendorType.Sp)</span></button>
+        </div>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Contact</th>
+                    <th>Email</th>
+                    <th class="num">Linked FCs</th>
+                    <th>Support types</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var v in Filtered())
+                {
+                    var linkedFcs = Fc.Rows.Count(r => r.Services.Any(s => s.Vendor == v.Name));
+                    <tr>
+                        <td><strong>@v.Name</strong></td>
+                        <td><span class="assoc-pill @(v.Type == VendorType.Isw ? "client" : "project")">@(v.Type == VendorType.Isw ? "ISW" : "SP")</span></td>
+                        <td>@v.Contact</td>
+                        <td class="muted">@v.Email</td>
+                        <td class="num mono">@linkedFcs</td>
+                        <td class="muted">@string.Join(", ", v.SupportTypes)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private string _t = "";
+
+    protected override void OnInitialized()
+    {
+        Vendors.OnChange += R;
+        Fc.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<Vendor> Filtered() =>
+        _t == "isw" ? Vendors.Vendors.Where(v => v.Type == VendorType.Isw)
+      : _t == "sp"  ? Vendors.Vendors.Where(v => v.Type == VendorType.Sp)
+      : Vendors.Vendors;
+
+    public void Dispose()
+    {
+        Vendors.OnChange -= R;
+        Fc.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

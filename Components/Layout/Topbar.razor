@@ -1,0 +1,213 @@
+@implements IDisposable
+@inject FundingCommitmentService Svc
+@inject UserContextService UserCtx
+@inject LocaleService L
+@inject NotificationService Notify
+@inject ToastService Toasts
+@inject NavigationManager Nav
+@inject ActiveContextService Context
+
+<header class="topbar">
+    <div class="breadcrumbs">
+        <span @onclick='() => Nav.NavigateTo("/")' style="cursor:pointer">SCS Portal</span>
+        <span class="sep">›</span>
+        <strong>@PageTitle()</strong>
+    </div>
+
+    <div class="global-search" role="search">
+        <label for="topbar-search" class="sr-only">Global search</label>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        </svg>
+        <input id="topbar-search" type="text"
+               placeholder="@L.T("Search across all clients · ID, vendor, funder, service…", "Rechercher clients, fournisseurs, financement…")"
+               aria-label="Search across all clients, vendors, funders and services"
+               value="@Svc.Search" @oninput="OnSearch" />
+        <span class="kbd" aria-hidden="true">/</span>
+    </div>
+
+    <div class="top-right">
+        @if (Context.RequiresActive)
+        {
+            @if (Context.HasActive)
+            {
+                <div class="active-ctx set" @onclick="OpenActive">
+                    <div class="ac-row1">
+                        <span class="ac-label">Active @(Context.Kind == ActiveContextKind.Client ? "Client" : "Project"):</span>
+                        <span class="ac-name">@Context.DisplayName</span>
+                        <button class="ac-btn primary" @onclick:stopPropagation="true" @onclick="OpenActive">CHANGE ACTIVE @(Context.Kind == ActiveContextKind.Client ? "CLIENT" : "PROJECT")</button>
+                    </div>
+                    <div class="ac-row2">
+                        <span><strong>@(Context.Kind == ActiveContextKind.Client ? "ID" : "Code"):</strong> @Context.DisplayId</span>
+                        <span>|</span>
+                        <span><strong>@(Context.Kind == ActiveContextKind.Client ? "DOB" : "Sponsor"):</strong> @(Context.Kind == ActiveContextKind.Client ? Context.ActiveClient?.Dob : Context.ActiveProject?.Sponsor)</span>
+                    </div>
+                    <div class="ac-row3">
+                        <span><strong>Funding:</strong> @Money(Context.FundingTotal)</span>
+                        <span><strong>Actual spent:</strong> @Money(Context.ActualSpent)</span>
+                        <span><strong>Available to spend:</strong> @Money(Context.AvailableToSpend)</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="active-ctx unset">
+                    <span class="ac-warn">No Active Client Selected</span>
+                    <button class="ac-btn primary" @onclick="OpenActive">SET ACTIVE CLIENT</button>
+                </div>
+            }
+        }
+
+        <div class="top-meta">
+            <span class="item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                </svg>
+                @DateTime.Now.ToString("dd-MMM-yyyy")
+            </span>
+            <span class="item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+                </svg>
+                @DateTime.Now.ToString("hh:mm tt")
+            </span>
+        </div>
+
+        <div class="role-pill" @onclick="ToggleRoleMenu" title="Switch role"
+             role="button" tabindex="0" aria-haspopup="menu" aria-expanded="@_roleMenuOpen.ToString().ToLower()"
+             aria-label="@($"Current user: {UserCtx.Effective.FullName}, role {RoleInfo.Label(UserCtx.Effective.Role)}. Click to switch user.")">
+            <div class="rp-av">@RoleInfo.Code(UserCtx.Effective.Role)</div>
+            <div class="rp-meta">
+                <div class="rp-name">@UserCtx.Effective.FullName</div>
+                <div class="rp-role">@RoleInfo.Label(UserCtx.Effective.Role)</div>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="m6 9 6 6 6-6" /></svg>
+            @if (_roleMenuOpen)
+            {
+                <div class="role-menu" @onclick:stopPropagation="true">
+                    <div class="rm-head">Switch user / role</div>
+                    @foreach (var u in UserCtx.Users)
+                    {
+                        var user = u;
+                        <div class="rm-item @(u.Id == UserCtx.Current.Id ? "active" : "")" @onclick="() => SelectUser(user)">
+                            <div class="rm-av">@RoleInfo.Code(user.Role)</div>
+                            <div>
+                                <div class="rm-nm">@user.FullName</div>
+                                <div class="rm-rl">@RoleInfo.Label(user.Role)</div>
+                            </div>
+                        </div>
+                    }
+                    @if (UserCtx.IsAdmin && UserCtx.Impersonating == null)
+                    {
+                        <div class="rm-divider"></div>
+                        <div class="rm-hint">Tip: as Admin, click any user above to Login-As.</div>
+                    }
+                </div>
+            }
+        </div>
+
+        <button class="lang-chip" @onclick="ToggleLang"
+                title="Toggle language"
+                aria-label="@($"Current language: {(L.Locale == AppLocale.En ? "English" : "French")}. Click to switch.")">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+            </svg>
+            <span>@(L.Locale == AppLocale.En ? "EN" : "FR")</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/notifications")'
+                title="Notifications" aria-label="@($"Open notifications ({Notify.UnreadCountForCurrent()} unread)")">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
+            </svg>
+            @if (Notify.UnreadCountForCurrent() > 0)
+            {
+                <span class="dot"></span>
+            }
+        </button>
+    </div>
+</header>
+
+<SetActiveContextDialog @ref="_acDialog" />
+
+@code {
+    private bool _roleMenuOpen;
+    private SetActiveContextDialog? _acDialog;
+
+    private void OpenActive() => _acDialog?.Open();
+    private static string Money(decimal n) => n == 0 ? "-" : "$" + n.ToString("N2");
+
+    protected override void OnInitialized()
+    {
+        UserCtx.OnChange += Refresh;
+        L.OnChange += Refresh;
+        Notify.OnChange += Refresh;
+        Context.OnChange += Refresh;
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        Svc.Search = e.Value?.ToString() ?? "";
+        Svc.Page = 1;
+        Svc.FocusedIndex = 0;
+        Svc.NotifyChanged();
+    }
+
+    private void ToggleLang()
+    {
+        L.Toggle();
+        Toasts.Show(ToastKind.Success, L.T("Language set to English", "Langue : Français"));
+    }
+
+    private void ToggleRoleMenu() { _roleMenuOpen = !_roleMenuOpen; }
+
+    private void SelectUser(AppUser u)
+    {
+        // If admin, treat as impersonation; else, raw switch
+        if (UserCtx.IsAdmin && u.Id != UserCtx.Current.Id)
+        {
+            UserCtx.Impersonate(u.Id);
+            Toasts.Show(ToastKind.Success, $"Logged in as {u.FullName} (impersonation)");
+        }
+        else
+        {
+            UserCtx.Switch(u.Id);
+            Toasts.Show(ToastKind.Success, $"Switched to {u.FullName}");
+        }
+        _roleMenuOpen = false;
+    }
+
+    private string PageTitle()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath.Trim('/');
+        return path switch
+        {
+            "" => L.Dashboard,
+            "funding-commitments" => L.FundingCommitments,
+            "permanent-funding" => L.PermanentFunding,
+            "projects" => L.Projects,
+            "clients" => L.Clients,
+            "vendors" => L.Vendors,
+            "rollover" => L.Rollover,
+            "scheduling" => L.Scheduling,
+            "invoices" => L.Invoices,
+            "financial-pressure" => L.FinancialPressure,
+            "notifications" => L.Notifications,
+            "audit" => L.AuditLog,
+            "admin" => L.Admin,
+            _ when path.StartsWith("permanent-funding/") => L.PermanentFunding + " · Detail",
+            _ => "SCS Portal"
+        };
+    }
+
+    public void Dispose()
+    {
+        UserCtx.OnChange -= Refresh;
+        L.OnChange -= Refresh;
+        Notify.OnChange -= Refresh;
+        Context.OnChange -= Refresh;
+    }
+}

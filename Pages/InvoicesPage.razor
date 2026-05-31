@@ -1,0 +1,494 @@
+@page "/invoices"
+@implements IDisposable
+@inject InvoicingService Inv
+@inject SchedulingService Sched
+@inject FundingCommitmentService Fc
+@inject UserContextService UserCtx
+@inject ActiveContextService ActiveClient
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · @L.Invoices</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Invoices</div>
+            <h1>@L.T("Invoices", "Factures")</h1>
+            <p class="sub">
+                @L.T("ISWs convert submitted shifts. SPs build invoices manually. Both run through the same approval workflow (FRD §9).",
+                     "ISW : conversion de quarts. SP : saisie manuelle. Même flux d'approbation.")
+            </p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat stat-money-main">
+                <div class="lbl">Total invoiced</div>
+                <div class="v">@Money(Inv.ForCurrentUser().Sum(i => i.Total))</div>
+                <div class="sub">in view</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Submitted</div>
+                <div class="v">@Inv.ForCurrentUser().Count(i => i.Status == InvoiceStatus.Submitted)</div>
+                <div class="sub">awaiting approval</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Approved</div>
+                <div class="v">@Inv.ForCurrentUser().Count(i => i.Status == InvoiceStatus.Approved)</div>
+                <div class="sub">awaiting payment</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Paid</div>
+                <div class="v">@Inv.ForCurrentUser().Count(i => i.Status == InvoiceStatus.Paid)</div>
+                <div class="sub">complete</div>
+            </div>
+        </div>
+    </div>
+
+    @{
+        // ISW conversion is available to:
+        // - Vendor ISW (their own shifts)
+        // - Internal staff (Admin/Finance/CM) acting on submitted shifts of any vendor
+        // ISW converts shifts → invoice. Internal staff can also use it. SPs cannot.
+        var canSeeIswConvert = UserCtx.Effective.Role == AppRole.VendorIsw || UserCtx.IsInternal;
+        var subShifts = ConvertibleShifts();
+    }
+    @if (canSeeIswConvert)
+    {
+        <div class="db-card">
+            <div class="db-head">
+                <h3>@L.T("Convert submitted shifts → invoice (ISW flow)", "Convertir quarts soumis → facture (ISW)")</h3>
+                <span class="muted" style="font-size:11.5px">@subShifts.Count submitted shift@(subShifts.Count == 1 ? "" : "s") available</span>
+            </div>
+            @if (!subShifts.Any())
+            {
+                <div class="empty-state" style="margin:0;border-radius:0">
+                    <div class="empty-title">No submitted shifts</div>
+                    <div class="empty-sub">Submit completed shifts from the Scheduling page first.</div>
+                </div>
+            }
+            else
+            {
+                var allSelected = subShifts.Count > 0 && subShifts.All(s => _selShifts.Contains(s.Id));
+                var selectedTotal = subShifts.Where(s => _selShifts.Contains(s.Id)).Sum(s => s.Total);
+                var selectedHours = subShifts.Where(s => _selShifts.Contains(s.Id)).Sum(s => s.Hours);
+                <div class="data-table-wrap inline">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:30px">
+                                    <div class="chk @(allSelected ? "checked" : "")"
+                                         title="@(allSelected ? "Deselect all" : "Select all")"
+                                         @onclick="() => ToggleAllShifts(subShifts)"></div>
+                                </th>
+                                <th>Date</th><th>Client/Project</th><th>Support</th><th class="num">Hours</th><th class="num">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in subShifts)
+                            {
+                                var sel = _selShifts.Contains(s.Id);
+                                <tr class="@(sel ? "row-selected" : "")" style="cursor:pointer" @onclick="() => Toggle(s.Id)">
+                                    <td><div class="chk @(sel ? "checked" : "")"></div></td>
+                                    <td class="mono">@s.Date.ToString("MMM dd")</td>
+                                    <td>@s.ClientOrProjectName</td>
+                                    <td>@s.SupportType</td>
+                                    <td class="num mono">@s.Hours</td>
+                                    <td class="num mono">@Money(s.Total)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div style="padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;border-top:1px solid var(--border-soft)">
+                    <span class="muted" style="margin-right:auto">
+                        Selected: <strong>@_selShifts.Count</strong> shift@(_selShifts.Count == 1 ? "" : "s")
+                        · <strong>@selectedHours.ToString("0.##") hrs</strong>
+                        · <strong>@Money(selectedTotal)</strong>
+                    </span>
+                    <button class="btn" disabled="@(_selShifts.Count == 0)" @onclick="() => _selShifts.Clear()">Clear</button>
+                    <button class="btn" @onclick="() => SelectAll(subShifts)">Select all</button>
+                    <button class="btn primary" disabled="@(_selShifts.Count == 0)" @onclick="ConvertSelected">Convert @_selShifts.Count → invoice</button>
+                </div>
+            }
+        </div>
+    }
+    @{
+        // SP, internal staff, AND clients (clients raise invoices to pay associated vendors)
+        var canBuildManual = UserCtx.Effective.Role == AppRole.VendorSp || UserCtx.IsInternal || UserCtx.IsClient;
+    }
+    @if (canBuildManual)
+    {
+        <div class="db-card">
+            <div class="db-head">
+                <h3>@L.T("Create invoice manually (SP flow)", "Création manuelle (SP)")</h3>
+                @if (ActiveClient.HasActive)
+                {
+                    <span class="muted" style="font-size:11.5px">
+                        for <strong>@ActiveClient.DisplayName</strong> · #@ActiveClient.DisplayId
+                    </span>
+                }
+                else
+                {
+                    <span class="muted" style="font-size:11.5px;color:var(--danger)">⚠ no active client/project — invoice will be unlinked</span>
+                }
+            </div>
+            <div style="padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
+                <div class="modal-row">
+                    <label class="modal-lbl">Funding commitment (optional)</label>
+                    <select class="modal-input" @bind="_manualFc" @bind:after="OnManualFcPicked">
+                        <option value="">— Pick an FC —</option>
+                        @foreach (var f in ManualEligibleFcs())
+                        {
+                            <option value="@f.CommitId">@f.CommitId · @f.ClientName · @f.Status</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Vendor name</label>
+                    <input class="modal-input" placeholder="@(UserCtx.IsVendor ? UserCtx.Effective.FullName : "Vendor")" @bind="_manualVendor" />
+                </div>
+            </div>
+            @{
+                var availSvcs = ManualAvailableServices().ToList();
+            }
+            <div class="data-table-wrap inline">
+                <table class="data-table inv-line-table">
+                    <thead>
+                        <tr>
+                            <th style="width:30%">Description</th>
+                            <th>Support type (from FC)</th>
+                            <th class="num" style="width:80px">Qty</th>
+                            <th class="num" style="width:110px">Rate</th>
+                            <th class="num" style="width:120px">Amount</th>
+                            <th style="width:50px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_manualLines.Count == 0)
+                        {
+                            <tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No line items yet. Click <strong>+ Add Line</strong> below.</td></tr>
+                        }
+                        @for (int i = 0; i < _manualLines.Count; i++)
+                        {
+                            var ix = i;
+                            var ln = _manualLines[ix];
+                            <tr>
+                                <td>
+                                    <input class="ft-input" placeholder="Support hours, mileage…"
+                                           @bind="ln.Description" />
+                                </td>
+                                <td>
+                                    @if (availSvcs.Count == 0)
+                                    {
+                                        <input class="ft-input" placeholder="Pick an FC to enable" disabled
+                                               @bind="ln.SupportType" />
+                                    }
+                                    else
+                                    {
+                                        <select class="ft-input"
+                                                @bind="ln.SupportType"
+                                                @bind:after="() => OnLineSupportPicked(ix)">
+                                            <option value="">— Select —</option>
+                                            @foreach (var s in availSvcs)
+                                            {
+                                                <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                                            }
+                                        </select>
+                                    }
+                                </td>
+                                <td>
+                                    <input type="number" min="0" step="0.01" class="ft-input num"
+                                           value="@(ln.Quantity == 0 ? "" : ln.Quantity.ToString("0.##"))"
+                                           @onchange="@(e => ln.Quantity = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0)" />
+                                </td>
+                                <td>
+                                    <input type="number" min="0" step="0.01" class="ft-input num"
+                                           value="@(ln.Rate == 0 ? "" : ln.Rate.ToString("0.##"))"
+                                           @onchange="@(e => ln.Rate = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0)" />
+                                </td>
+                                <td class="num mono"><strong>@ln.Amount.ToString("C2")</strong></td>
+                                <td>
+                                    <button class="btn ghost" style="padding:4px 8px;color:var(--danger)"
+                                            @onclick="() => _manualLines.RemoveAt(ix)" title="Remove">✕</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (_manualLines.Count > 0)
+                        {
+                            <tr style="background:var(--brand-25);font-weight:600">
+                                <td colspan="4" style="text-align:right">Total</td>
+                                <td class="num mono">@Money(_manualLines.Sum(l => l.Amount))</td>
+                                <td></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="ft-add" style="border-top:1px dashed var(--border)" @onclick="AddBlankManualLine">+ Add Line</div>
+            </div>
+
+            <div style="padding:12px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border-soft)">
+                <button class="btn ghost" @onclick="() => _manualLines.Clear()" disabled="@(_manualLines.Count == 0)">Clear all lines</button>
+                <button class="btn primary" @onclick="CreateManualInvoice" disabled="@(_manualLines.Count == 0)">Create draft invoice</button>
+            </div>
+        </div>
+    }
+
+    <div class="db-card" style="margin-top:18px">
+        <div class="db-head"><h3>@L.T("Invoice list", "Liste des factures")</h3></div>
+        <div class="data-table-wrap inline">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Number</th>
+                        <th>Vendor</th>
+                        <th>Linked</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th class="num">Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in Inv.ForCurrentUser().OrderByDescending(x => x.Date))
+                    {
+                        var inv = i;
+                        <tr style="cursor:pointer" @onclick="() => ViewInvoice(inv.Id)">
+                            <td class="mono">@inv.Number</td>
+                            <td>@inv.VendorName <span class="assoc-pill @(inv.VendorType == VendorType.Isw ? "client" : "project")">@(inv.VendorType == VendorType.Isw ? "ISW" : "SP")</span></td>
+                            <td>@inv.LinkedEntityName</td>
+                            <td class="mono">@inv.Date.ToString("MMM dd, yyyy")</td>
+                            <td><span class="status-pill @InvClass(inv.Status)">@inv.Status</span></td>
+                            <td class="num mono">@Money(inv.Total)</td>
+                            <td @onclick:stopPropagation="true">
+                                <button class="btn" style="padding:4px 10px;font-size:11px" @onclick="() => ViewInvoice(inv.Id)">View</button>
+                                @if (inv.Status == InvoiceStatus.Draft && UserCtx.IsVendor)
+                                {
+                                    <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Inv.Submit(inv.Id)">Submit</button>
+                                }
+                                @if (inv.Status == InvoiceStatus.Submitted && (UserCtx.IsFinance || UserCtx.IsAdmin))
+                                {
+                                    <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Approve(inv.Id)">Approve</button>
+                                    <button class="btn" style="padding:4px 10px;font-size:11px;color:var(--danger)" @onclick="() => Reject(inv.Id)">Reject</button>
+                                }
+                                @if (inv.Status == InvoiceStatus.Approved && (UserCtx.IsFinance || UserCtx.IsAdmin))
+                                {
+                                    <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Pay(inv.Id)">Mark paid</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<InvoiceDetailDrawer @ref="_invDrawer" />
+
+@code {
+    private InvoiceDetailDrawer? _invDrawer;
+
+    private void ViewInvoice(string id) => _invDrawer?.Open(id);
+    private HashSet<string> _selShifts = new();
+
+    private string _descr = "Support hours";
+    private string _support = "Personal Development Support";
+    private decimal _qty = 4;
+    private decimal _rate = 60;
+    private List<InvoiceLine> _manualLines = new();
+    private string _manualFc = "";
+    private string _manualVendor = "";
+
+    private IEnumerable<ServiceLine> ManualAvailableServices()
+    {
+        if (string.IsNullOrEmpty(_manualFc)) return Array.Empty<ServiceLine>();
+        var fc = Fc.FindByCommitId(_manualFc);
+        if (fc == null) return Array.Empty<ServiceLine>();
+
+        if (UserCtx.IsVendor)
+        {
+            var candidates = new List<string> { UserCtx.Effective.FullName };
+            if (UserCtx.Effective.LinkedVendorId == "v-sp-01") candidates.Add("Maple Care Inc.");
+            if (UserCtx.Effective.LinkedVendorId == "v-isw-01") candidates.Add("Ima Worker");
+            return fc.Services.Where(s => candidates.Any(c => string.Equals(c, s.Vendor, StringComparison.OrdinalIgnoreCase)));
+        }
+        return fc.Services;
+    }
+
+    private void OnManualSupportPicked()
+    {
+        var match = ManualAvailableServices().FirstOrDefault(s => s.Name == _support);
+        if (match != null) _rate = match.Rate;
+    }
+
+    private void OnManualFcPicked()
+    {
+        var svcs = ManualAvailableServices().ToList();
+        if (svcs.Count > 0)
+        {
+            _support = svcs[0].Name;
+            _rate = svcs[0].Rate;
+        }
+        else
+        {
+            _support = "";
+        }
+    }
+
+    private void AddBlankManualLine()
+    {
+        var svcs = ManualAvailableServices().ToList();
+        var first = svcs.FirstOrDefault();
+        _manualLines.Add(new InvoiceLine
+        {
+            Description = "Support hours",
+            SupportType = first?.Name ?? "",
+            Quantity = 1,
+            Rate = first?.Rate ?? 0
+        });
+    }
+
+    private void OnLineSupportPicked(int ix)
+    {
+        if (ix < 0 || ix >= _manualLines.Count) return;
+        var ln = _manualLines[ix];
+        var match = ManualAvailableServices().FirstOrDefault(s => s.Name == ln.SupportType);
+        if (match != null) ln.Rate = match.Rate;
+    }
+
+    private IEnumerable<FundingCommitment> ManualEligibleFcs()
+    {
+        var src = UserCtx.IsVendor
+            ? Fc.VisibleToCurrent()
+            : Fc.Rows.AsEnumerable();
+        if (ActiveClient.HasActive)
+        {
+            if (ActiveClient.Kind == ActiveContextKind.Client)
+                src = src.Where(r => r.Association == AssociationType.Client && r.ClientId == ActiveClient.ActiveClient!.EtoId);
+            else
+                src = src.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == ActiveClient.ActiveProject!.Id);
+        }
+        return src.Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Pending);
+    }
+
+    protected override void OnInitialized()
+    {
+        Inv.OnChange += R;
+        Sched.OnChange += R;
+        L.OnChange += R;
+        UserCtx.OnChange += R;
+        ActiveClient.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void Toggle(string id) { if (!_selShifts.Add(id)) _selShifts.Remove(id); }
+
+    private void SelectAll(List<Shift> shifts)
+    {
+        foreach (var s in shifts) _selShifts.Add(s.Id);
+    }
+
+    private void ToggleAllShifts(List<Shift> shifts)
+    {
+        if (shifts.All(s => _selShifts.Contains(s.Id)))
+        {
+            foreach (var s in shifts) _selShifts.Remove(s.Id);
+        }
+        else
+        {
+            foreach (var s in shifts) _selShifts.Add(s.Id);
+        }
+    }
+
+    private List<Shift> ConvertibleShifts()
+    {
+        var src = UserCtx.IsVendor
+            ? Sched.ForCurrentUser()
+            : Sched.Shifts.AsEnumerable();
+        if (ActiveClient.HasActive)
+        {
+            var name = ActiveClient.DisplayName;
+            src = src.Where(s => s.ClientOrProjectName.Contains(name, StringComparison.OrdinalIgnoreCase));
+        }
+        return src.Where(s => s.Status == ShiftStatus.Submitted).ToList();
+    }
+
+    private void ConvertSelected()
+    {
+        var shifts = ConvertibleShifts().Where(s => _selShifts.Contains(s.Id)).ToList();
+        if (shifts.Count == 0) return;
+        var fcId = shifts.First().FcId;
+        var vendorName = UserCtx.Effective.FullName;
+        var inv = Inv.CreateFromShifts(shifts, fcId, vendorName);
+        foreach (var s in shifts) s.Status = ShiftStatus.Invoiced;
+        _selShifts.Clear();
+        Toasts.Show(ToastKind.Success, $"Created {inv.Number} from {shifts.Count} shifts");
+    }
+
+    private void AddManualLine()
+    {
+        _manualLines.Add(new InvoiceLine
+        {
+            Description = _descr, SupportType = _support, Quantity = _qty, Rate = _rate
+        });
+    }
+
+    private void CreateManualInvoice()
+    {
+        if (_manualLines.Count == 0) return;
+        var vendorName = !string.IsNullOrWhiteSpace(_manualVendor)
+            ? _manualVendor.Trim()
+            : (UserCtx.IsVendor ? UserCtx.Effective.FullName : "Vendor");
+        var fcId = !string.IsNullOrEmpty(_manualFc) ? _manualFc : "—";
+        var inv = Inv.CreateManual(vendorName, fcId, _manualLines);
+
+        // Bind linked entity to active context for display
+        if (ActiveClient.HasActive)
+        {
+            inv.Association = ActiveClient.Kind == ActiveContextKind.Client
+                ? AssociationType.Client : AssociationType.Project;
+            inv.LinkedEntityName = ActiveClient.DisplayName;
+        }
+        else if (!string.IsNullOrEmpty(_manualFc))
+        {
+            var fc = Fc.FindByCommitId(_manualFc);
+            if (fc != null)
+            {
+                inv.Association = fc.Association;
+                inv.LinkedEntityName = fc.ClientName;
+            }
+        }
+
+        _manualLines = new List<InvoiceLine>();
+        _manualFc = "";
+        _manualVendor = "";
+        Toasts.Show(ToastKind.Success, $"Draft invoice {inv.Number} created for {inv.LinkedEntityName}");
+    }
+
+    private void Approve(string id) { Inv.Approve(id); Toasts.Show(ToastKind.Success, "Invoice approved"); }
+    private void Reject(string id) { Inv.Reject(id, "Returned for revision"); Toasts.Show(ToastKind.Warning, "Invoice rejected"); }
+    private void Pay(string id) { Inv.MarkPaid(id); Toasts.Show(ToastKind.Success, "Invoice marked paid"); }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string InvClass(InvoiceStatus s) => s switch
+    {
+        InvoiceStatus.Draft => "st-draft",
+        InvoiceStatus.Submitted => "st-pending",
+        InvoiceStatus.Approved => "st-approved",
+        InvoiceStatus.Paid => "st-active",
+        InvoiceStatus.Rejected => "st-rejected",
+        _ => "st-draft"
+    };
+
+    public void Dispose()
+    {
+        Inv.OnChange -= R;
+        Sched.OnChange -= R;
+        L.OnChange -= R;
+        UserCtx.OnChange -= R;
+        ActiveClient.OnChange -= R;
+    }
+}

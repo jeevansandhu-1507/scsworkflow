@@ -1,0 +1,332 @@
+@page "/financial-pressure"
+@implements IDisposable
+@inject FinancialPressureService Fp
+@inject FundingCommitmentService Fc
+@inject ActiveContextService ActiveCtx
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · @L.FinancialPressure</PageTitle>
+
+<section class="page">
+    @if (UserCtx.Effective.Role == AppRole.VendorIsw || UserCtx.IsClient)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Not available for your role</div>
+            <div class="empty-sub">Only Service Providers and internal staff use the Financial Pressure module.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/")'>Back to dashboard</button>
+        </div>
+    }
+    else
+    {
+        var isVendorView = UserCtx.Effective.Role == AppRole.VendorSp;
+        var all = ScopedRequests().ToList();
+        var totalAmount = all.Where(r => r.Status != FpStatus.Rejected).Sum(r => r.RequestedAmount);
+        var filtered = Filtered(all).ToList();
+        var total = filtered.Count;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)_perPage));
+        if (_page > totalPages) _page = totalPages;
+        if (_page < 1) _page = 1;
+        var startIx = (_page - 1) * _perPage;
+        var pageItems = filtered.Skip(startIx).Take(_perPage).ToList();
+        var endIx = startIx + pageItems.Count;
+
+        <div class="fcl-head">
+            <h1 class="fcl-title">💰 @L.FinancialPressure</h1>
+        </div>
+
+        <div class="page-header" style="margin-bottom:14px">
+            <div class="stat-strip" style="grid-template-columns:repeat(5,minmax(120px,1fr))">
+                <div class="stat stat-money-main" @onclick='() => _filter = "all"'>
+                    <div class="lbl">All</div>
+                    <div class="v">@all.Count</div>
+                    <div class="sub">@(isVendorView ? "yours" : "in queue")</div>
+                </div>
+                <div class="stat" @onclick='() => _filter = "open"'>
+                    <div class="lbl">Open</div>
+                    <div class="v">@all.Count(r => r.Status is FpStatus.Submitted or FpStatus.CmReview or FpStatus.FinanceReview)</div>
+                    <div class="sub">in review</div>
+                </div>
+                <div class="stat" @onclick='() => _filter = "approved"'>
+                    <div class="lbl">Approved</div>
+                    <div class="v">@all.Count(r => r.Status == FpStatus.Approved)</div>
+                    <div class="sub">final</div>
+                </div>
+                <div class="stat" @onclick='() => _filter = "rejected"'>
+                    <div class="lbl">Rejected</div>
+                    <div class="v">@all.Count(r => r.Status == FpStatus.Rejected)</div>
+                    <div class="sub">declined</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Total $ requested</div>
+                    <div class="v">@Money(totalAmount)</div>
+                    <div class="sub">excluding rejected</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fcl-card">
+            <div class="fcl-card-head">
+                <div class="fcl-card-title">@(isVendorView ? "My financial pressure requests" : "Financial pressure review queue")</div>
+                <div class="fcl-card-actions">
+                    @if (isVendorView)
+                    {
+                        <button class="btn primary fcl-add" @onclick='() => Nav.NavigateTo("/financial-pressure/new")'>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+                            NEW REQUEST
+                        </button>
+                    }
+                    <div class="fcl-view">
+                        <label>View</label>
+                        <select class="modal-input fcl-select" @bind="_filter" @bind:after="OnFilterChanged">
+                            <option value="all">All</option>
+                            <option value="open">Open</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="fcl-view">
+                        <label>Per page</label>
+                        <select class="modal-input fcl-select" @bind="_perPage" @bind:after="OnFilterChanged">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fcl-meta">
+                Showing <strong>@(total == 0 ? 0 : startIx + 1)</strong> – <strong>@endIx</strong> of <strong>@total</strong> requests
+            </div>
+
+            <div class="fcl-table-wrap">
+                <table class="fcl-table">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>@(isVendorView ? "Client/Project" : "Vendor")</th>
+                            @if (!isVendorView)
+                            {
+                                <th>Linked</th>
+                            }
+                            <th>Support Type</th>
+                            <th>Amount</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in pageItems)
+                        {
+                            var rv = r;
+                            <tr style="cursor:pointer" @onclick="() => OpenDetail(rv)">
+                                <td class="mono">@rv.Id</td>
+                                <td>@(isVendorView ? rv.LinkedEntityName : rv.VendorName)</td>
+                                @if (!isVendorView)
+                                {
+                                    <td>@rv.LinkedEntityName <span class="muted mono" style="font-size:11px">@rv.FcId</span></td>
+                                }
+                                <td class="muted">@rv.SupportType</td>
+                                <td class="num mono"><strong>@Money(rv.RequestedAmount)</strong></td>
+                                <td><span class="assoc-pill @(rv.Priority is FpPriority.High or FpPriority.Urgent ? "project" : "client")">@rv.Priority</span></td>
+                                <td><span class="fcl-pill @FpPillClass(rv.Status)"><span class="fcl-pill-dot"></span>@FpLabel(rv.Status)</span></td>
+                                <td>
+                                    <div class="fcl-date">@rv.Created.ToString("MMM dd, yyyy")</div>
+                                    <div class="fcl-time muted">@rv.Created.ToString("hh:mm tt")</div>
+                                </td>
+                                <td @onclick:stopPropagation="true">
+                                    <button class="btn" style="padding:4px 10px;font-size:11px" @onclick="() => OpenDetail(rv)">View</button>
+                                    @if (!isVendorView)
+                                    {
+                                        @if (UserCtx.IsCaseManager && rv.Status == FpStatus.Submitted)
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => CmClear(rv.Id)">Clear → Finance</button>
+                                        }
+                                        @if (UserCtx.IsFinance && rv.Status == FpStatus.FinanceReview)
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Approve(rv.Id)">Approve</button>
+                                        }
+                                        @if ((UserCtx.IsFinance || UserCtx.IsCaseManager) && rv.Status is FpStatus.Submitted or FpStatus.FinanceReview or FpStatus.CmReview)
+                                        {
+                                            <button class="btn" style="padding:4px 10px;font-size:11px;color:var(--danger)" @onclick="() => Reject(rv.Id)">Reject</button>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (pageItems.Count == 0)
+                        {
+                            <tr><td colspan="@(isVendorView ? 8 : 9)" class="muted" style="text-align:center;padding:34px">
+                                @if (isVendorView)
+                                {
+                                    <span>You haven't submitted any financial pressure requests yet. Click <strong>NEW REQUEST</strong> to start one.</span>
+                                }
+                                else
+                                {
+                                    <span>No requests match the current filters.</span>
+                                }
+                            </td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="fcl-pager">
+                <div class="fcl-pager-info">Page <strong>@_page</strong> of <strong>@totalPages</strong></div>
+                <div style="flex:1"></div>
+                <button class="btn fcl-pager-btn" disabled="@(_page == 1)" @onclick="() => _page--">‹ PREVIOUS</button>
+                <button class="btn fcl-pager-btn" disabled="@(_page == totalPages)" @onclick="() => _page++">NEXT ›</button>
+            </div>
+        </div>
+    }
+</section>
+
+<!-- Inline detail popover (lightweight) -->
+@if (_detail != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetail"></div>
+    <div class="modal-card" style="width:min(720px,94vw)" @onclick:stopPropagation="true">
+        <header class="modal-head">
+            <div>
+                <div class="modal-eyebrow">Financial Pressure Request</div>
+                <h2>@_detail.Id · @_detail.LinkedEntityName</h2>
+            </div>
+            <button class="bd-close" @onclick="CloseDetail" title="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+        </header>
+        <div class="modal-body">
+            <div class="kv-grid">
+                <div class="kv"><span class="k">Vendor</span><span class="v">@_detail.VendorName</span></div>
+                <div class="kv"><span class="k">Linked</span><span class="v">@_detail.LinkedEntityName · @(_detail.Association == AssociationType.Client ? "Client" : "Project")</span></div>
+                <div class="kv"><span class="k">Support type</span><span class="v">@_detail.SupportType</span></div>
+                <div class="kv"><span class="k">Amount</span><span class="v mono"><strong>@Money(_detail.RequestedAmount)</strong></span></div>
+                <div class="kv"><span class="k">Priority</span><span class="v"><span class="assoc-pill @(_detail.Priority is FpPriority.High or FpPriority.Urgent ? "project" : "client")">@_detail.Priority</span></span></div>
+                <div class="kv"><span class="k">Status</span><span class="v"><span class="fcl-pill @FpPillClass(_detail.Status)"><span class="fcl-pill-dot"></span>@FpLabel(_detail.Status)</span></span></div>
+                <div class="kv"><span class="k">Linked FC</span><span class="v mono">@(_detail.FcId ?? "—")</span></div>
+                <div class="kv"><span class="k">Created</span><span class="v mono">@_detail.Created.ToString("MMM dd, yyyy · HH:mm")</span></div>
+                <div class="kv" style="grid-column:1 / -1"><span class="k">Justification</span><span class="v">@_detail.Justification</span></div>
+                @if (!string.IsNullOrEmpty(_detail.CmComment))
+                {
+                    <div class="kv" style="grid-column:1 / -1"><span class="k">CM comment</span><span class="v muted">@_detail.CmComment</span></div>
+                }
+                @if (!string.IsNullOrEmpty(_detail.FinanceComment))
+                {
+                    <div class="kv" style="grid-column:1 / -1"><span class="k">Finance comment</span><span class="v muted">@_detail.FinanceComment</span></div>
+                }
+            </div>
+
+            <div style="margin-top:16px">
+                <div class="db-head" style="padding:10px 0 6px"><h3 style="font-size:13px">Audit history</h3></div>
+                <EntityHistory EntityType="FinancialPressure" EntityId="@_detail.Id" />
+            </div>
+        </div>
+        <footer class="modal-foot">
+            <button class="btn ghost" @onclick="CloseDetail">Close</button>
+            @if (UserCtx.IsCaseManager && _detail.Status == FpStatus.Submitted)
+            {
+                <button class="btn primary" @onclick="() => { CmClear(_detail.Id); CloseDetail(); }">Clear → Finance</button>
+            }
+            @if (UserCtx.IsFinance && _detail.Status == FpStatus.FinanceReview)
+            {
+                <button class="btn primary" @onclick="() => { Approve(_detail.Id); CloseDetail(); }">Approve</button>
+            }
+            @if ((UserCtx.IsFinance || UserCtx.IsCaseManager) && _detail.Status is FpStatus.Submitted or FpStatus.FinanceReview or FpStatus.CmReview)
+            {
+                <button class="btn" style="color:var(--danger)" @onclick="() => { Reject(_detail.Id); CloseDetail(); }">Reject</button>
+            }
+        </footer>
+    </div>
+}
+
+@code {
+    private string _filter = "all";
+    private int _perPage = 10;
+    private int _page = 1;
+    private FinancialPressureRequest? _detail;
+
+    protected override void OnInitialized()
+    {
+        Fp.OnChange += R;
+        Fc.OnChange += R;
+        L.OnChange += R;
+        UserCtx.OnChange += R;
+        ActiveCtx.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FinancialPressureRequest> ScopedRequests()
+    {
+        if (UserCtx.Effective.Role == AppRole.VendorSp)
+        {
+            var vendor = ResolveVendorName();
+            return Fp.Requests.Where(r =>
+                string.Equals(r.VendorName, vendor, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r.VendorName, UserCtx.Effective.FullName, StringComparison.OrdinalIgnoreCase));
+        }
+        return Fp.Requests;
+    }
+
+    private string ResolveVendorName()
+    {
+        var u = UserCtx.Effective;
+        if (u.LinkedVendorId == "v-sp-01") return "Maple Care Inc.";
+        if (u.LinkedVendorId == "v-isw-01") return "Ima Worker";
+        return u.FullName;
+    }
+
+    private IEnumerable<FinancialPressureRequest> Filtered(IEnumerable<FinancialPressureRequest> src) => _filter switch
+    {
+        "open" => src.Where(r => r.Status is FpStatus.Submitted or FpStatus.CmReview or FpStatus.FinanceReview),
+        "approved" => src.Where(r => r.Status == FpStatus.Approved),
+        "rejected" => src.Where(r => r.Status == FpStatus.Rejected),
+        _ => src
+    };
+
+    private void OnFilterChanged() { _page = 1; }
+
+    private void OpenDetail(FinancialPressureRequest r) { _detail = r; StateHasChanged(); }
+    private void CloseDetail() { _detail = null; StateHasChanged(); }
+
+    private void CmClear(string id) { Fp.CmReview(id, "Operationally justified."); Toasts.Show(ToastKind.Success, "Cleared for Finance review"); }
+    private void Approve(string id) { Fp.FinanceApprove(id, "Approved."); Toasts.Show(ToastKind.Success, "Request approved"); }
+    private void Reject(string id) { Fp.Reject(id, "Insufficient justification."); Toasts.Show(ToastKind.Warning, "Request rejected"); }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string FpLabel(FpStatus s) => s switch
+    {
+        FpStatus.Submitted => "Submitted",
+        FpStatus.CmReview => "CM review",
+        FpStatus.FinanceReview => "Finance review",
+        FpStatus.Approved => "Approved",
+        FpStatus.Rejected => "Rejected",
+        FpStatus.Draft => "Draft",
+        _ => "Unknown"
+    };
+
+    private static string FpPillClass(FpStatus s) => s switch
+    {
+        FpStatus.Submitted => "fcl-pending",
+        FpStatus.CmReview => "fcl-awaiting",
+        FpStatus.FinanceReview => "fcl-finance",
+        FpStatus.Approved => "fcl-approved",
+        FpStatus.Rejected => "fcl-rejected",
+        _ => "fcl-draft"
+    };
+
+    public void Dispose()
+    {
+        Fp.OnChange -= R;
+        Fc.OnChange -= R;
+        L.OnChange -= R;
+        UserCtx.OnChange -= R;
+        ActiveCtx.OnChange -= R;
+    }
+}

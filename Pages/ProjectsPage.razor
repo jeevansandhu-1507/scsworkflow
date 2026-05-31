@@ -1,0 +1,90 @@
+@page "/projects"
+@implements IDisposable
+@inject ProjectService Projects
+@inject FundingCommitmentService Fc
+@inject PermanentFundingService Pf
+@inject NavigationManager Nav
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.Projects</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Projects</div>
+            <h1>@L.T("Project master", "Liste des projets")</h1>
+            <p class="sub">@L.T("Projects feed the same Funding Commitment workflow as clients (FRD §2.1).", "Les projets utilisent le même flux d'engagement que les clients (FRD §2.1).")</p>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <input class="modal-input" style="min-width:320px" placeholder="Search project, code, sponsor…" @bind="_search" @bind:event="oninput" />
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Sponsor</th>
+                    <th>Manager</th>
+                    <th>Start</th>
+                    <th class="num">PFs</th>
+                    <th class="num">FCs</th>
+                    <th class="num">Total committed</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Filtered())
+                {
+                    var pfs = Pf.Records.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == p.Id).ToList();
+                    var fcs = Fc.Rows.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == p.Id).ToList();
+                    var committed = fcs.Sum(r => r.Total);
+                    <tr>
+                        <td class="mono">@p.Code</td>
+                        <td><strong>@p.Name</strong><div class="muted" style="margin-top:2px">@p.Description</div></td>
+                        <td>@p.Sponsor</td>
+                        <td>@p.ManagerName</td>
+                        <td class="mono">@p.StartDate.ToString("MMM yyyy")</td>
+                        <td class="num mono">@pfs.Count</td>
+                        <td class="num mono">@fcs.Count</td>
+                        <td class="num mono">@Money(committed)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private string _search = "";
+
+    protected override void OnInitialized()
+    {
+        Projects.OnChange += R;
+        Fc.OnChange += R;
+        Pf.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<Project> Filtered()
+    {
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        return string.IsNullOrEmpty(q)
+            ? Projects.Projects
+            : Projects.Projects.Where(p => (p.Name + " " + p.Code + " " + p.Sponsor + " " + p.ManagerName).ToLowerInvariant().Contains(q));
+    }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    public void Dispose()
+    {
+        Projects.OnChange -= R;
+        Fc.OnChange -= R;
+        Pf.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

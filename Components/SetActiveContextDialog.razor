@@ -1,0 +1,359 @@
+@inject ActiveContextService Context
+@inject ClientDirectoryService Clients
+@inject ProjectService Projects
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+
+@if (_open)
+{
+    <div class="modal-overlay" @onclick="Close"></div>
+    <div class="modal-card" style="width:min(580px,92vw)" @onclick:stopPropagation="true">
+        <header class="modal-head">
+            <div>
+                <div class="modal-eyebrow">Active Context</div>
+                <h2>Set Active Client or Project</h2>
+            </div>
+            <button class="bd-close" @onclick="Close" title="Close" aria-label="Close set active context dialog">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+        </header>
+
+        <div class="ctx-tabs">
+            <button class="ctx-tab @(_kind == "client" ? "active" : "")" @onclick='() => SetKind("client")'>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                Client
+            </button>
+            <button class="ctx-tab @(_kind == "project" ? "active" : "")" @onclick='() => SetKind("project")'>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18" /></svg>
+                Project
+            </button>
+        </div>
+
+        <div class="modal-body">
+            @if (_kind == "client")
+            {
+                @if (Context.IsRestrictedToAssociated)
+                {
+                    var assoc = Context.AssociatedClientsForCurrentVendor().ToList();
+                    <div class="modal-row">
+                        <label class="modal-lbl">Select from your assigned clients</label>
+                        <select class="modal-input" @bind="_id" @bind:after="OnClientPicked">
+                            <option value="">— Select a client —</option>
+                            @foreach (var c in assoc)
+                            {
+                                <option value="@c.EtoId">@c.FullName · #@c.EtoId</option>
+                            }
+                        </select>
+                    </div>
+                    @if (assoc.Count == 0)
+                    {
+                        <div class="modal-result error">You have no associated clients yet. Ask an internal staff member to assign you to a Funding Commitment.</div>
+                    }
+                    else if (_previewClient != null)
+                    {
+                        <div class="modal-summary">
+                            <div class="row"><span class="lbl">Client Information:</span><span></span></div>
+                            <div class="row"><span class="lbl">Name</span><span><strong>@_previewClient.FullName</strong></span></div>
+                            <div class="row"><span class="lbl">ETO ID</span><span class="mono">#@_previewClient.EtoId</span></div>
+                            <div class="row"><span class="lbl">DOB</span><span class="mono">@_previewClient.Dob</span></div>
+                            <div class="row"><span class="lbl">City</span><span>@_previewClient.City</span></div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="modal-row">
+                        <label class="modal-lbl">Enter ETO Client ID</label>
+                        <div class="modal-input-row">
+                            <input class="modal-input" placeholder="e.g. 23343"
+                                   @bind="_id" @bind:event="oninput"
+                                   @onkeydown="OnEnter"
+                                   autofocus />
+                            <button class="btn primary" @onclick="FetchClient" disabled="@string.IsNullOrWhiteSpace(_id)">Fetch</button>
+                        </div>
+                    </div>
+                    <div class="modal-summary">
+                        <div class="row"><span class="lbl">Client Information:</span><span></span></div>
+                        @if (_previewClient != null)
+                        {
+                            <div class="row"><span class="lbl">Name</span><span><strong>@_previewClient.FullName</strong></span></div>
+                            <div class="row"><span class="lbl">ETO ID</span><span class="mono">#@_previewClient.EtoId</span></div>
+                            <div class="row"><span class="lbl">DOB</span><span class="mono">@_previewClient.Dob</span></div>
+                            <div class="row"><span class="lbl">City</span><span>@_previewClient.City</span></div>
+                        }
+                        else if (_tried)
+                        {
+                            <div class="row" style="color:var(--danger)"><span class="lbl">Not found</span><span>No client matches “@_id”. Try one of the sample IDs below.</span></div>
+                        }
+                        else
+                        {
+                            <div class="row"><span class="lbl"></span><span class="muted">None Selected — enter an ETO ID and click Fetch.</span></div>
+                        }
+                    </div>
+                    <div class="modal-hint">
+                        Sample IDs:
+                        @foreach (var sid in new[] { "23343", "20716", "84291", "10245", "67234", "10342" })
+                        {
+                            <button class="wiz-chip-pick" style="margin-right:6px;padding:2px 8px;font-size:11px" @onclick="() => UseSample(sid)">@sid</button>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                var projectList = Context.IsRestrictedToAssociated
+                    ? Context.AssociatedProjectsForCurrentVendor().ToList()
+                    : Projects.Projects.ToList();
+
+                @if (!_creatingProject)
+                {
+                    <div class="modal-row">
+                        <label class="modal-lbl">@(Context.IsRestrictedToAssociated ? "Select from your assigned projects" : "Select existing project")</label>
+                        <select class="modal-input" @bind="_id" @bind:after="OnProjectChanged">
+                            <option value="">— Select a project —</option>
+                            @foreach (var p in projectList)
+                            {
+                                <option value="@p.Id">@p.Name · @p.Code · @p.Sponsor</option>
+                            }
+                        </select>
+                    </div>
+                    @if (Context.IsRestrictedToAssociated && projectList.Count == 0)
+                    {
+                        <div class="modal-result error">You have no associated projects.</div>
+                    }
+                    <div class="modal-summary">
+                        <div class="row"><span class="lbl">Project Information:</span><span></span></div>
+                        @if (_previewProject != null)
+                        {
+                            <div class="row"><span class="lbl">Name</span><span><strong>@_previewProject.Name</strong></span></div>
+                            <div class="row"><span class="lbl">Code</span><span class="mono">@_previewProject.Code</span></div>
+                            <div class="row"><span class="lbl">Sponsor</span><span>@_previewProject.Sponsor</span></div>
+                            <div class="row"><span class="lbl">Manager</span><span>@_previewProject.ManagerName</span></div>
+                            <div class="row"><span class="lbl">Start</span><span class="mono">@_previewProject.StartDate.ToString("MMM yyyy")</span></div>
+                            @if (!string.IsNullOrEmpty(_previewProject.Description))
+                            {
+                                <div class="row"><span class="lbl">Description</span><span class="muted">@_previewProject.Description</span></div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="row"><span class="lbl"></span><span class="muted">None Selected</span></div>
+                        }
+                    </div>
+                    @if (!Context.IsRestrictedToAssociated)
+                    {
+                        <div style="display:flex;justify-content:center">
+                            <button class="btn" @onclick="StartCreate">+ Create new project</button>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="modal-hint">Fill out the project details. After creation it becomes the active project.</div>
+                    <div class="modal-grid-2">
+                        <div class="modal-row">
+                            <label class="modal-lbl">Project name <span style="color:var(--danger)">*</span></label>
+                            <input class="modal-input" @bind="_newName" @bind:event="oninput" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Code <span style="color:var(--danger)">*</span></label>
+                            <input class="modal-input" placeholder="PRJ-X-2026" @bind="_newCode" @bind:event="oninput" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Sponsor</label>
+                            <input class="modal-input" placeholder="MCCSS" @bind="_newSponsor" @bind:event="oninput" />
+                        </div>
+                        <div class="modal-row">
+                            <label class="modal-lbl">Project Manager</label>
+                            <input class="modal-input" placeholder="Manager name" @bind="_newManager" @bind:event="oninput" />
+                        </div>
+                        <div class="modal-row" style="grid-column:span 2">
+                            <label class="modal-lbl">Description</label>
+                            <input class="modal-input" @bind="_newDesc" @bind:event="oninput" />
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end">
+                        <button class="btn ghost" @onclick="CancelCreate">Cancel</button>
+                    </div>
+                }
+            }
+        </div>
+
+        <footer class="modal-foot">
+            @if (Context.HasActive)
+            {
+                <button class="btn" @onclick="ClearActive" style="margin-right:auto">Clear active context</button>
+            }
+            <button class="btn ghost" @onclick="Close">Cancel</button>
+            @if (_kind == "project" && _creatingProject)
+            {
+                <button class="btn primary" @onclick="FinishCreate" disabled="@(string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newCode))">Create &amp; set active</button>
+            }
+            else
+            {
+                <button class="btn primary" @onclick="Apply" disabled="@(!CanApply())">Apply</button>
+            }
+        </footer>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private string _kind = "client";
+    private string _id = "";
+    private Client? _previewClient;
+    private Project? _previewProject;
+    private bool _tried;
+
+    private bool _creatingProject;
+    private string _newName = "";
+    private string _newCode = "";
+    private string _newSponsor = "MCCSS";
+    private string _newManager = "";
+    private string _newDesc = "";
+
+    public bool IsOpen => _open;
+
+    public void Open()
+    {
+        _open = true;
+        _kind = Context.Kind == ActiveContextKind.Project ? "project" : "client";
+
+        if (Context.Kind == ActiveContextKind.Client)
+        {
+            _id = Context.ActiveClient?.EtoId ?? "";
+            _previewClient = Context.ActiveClient;
+            _previewProject = null;
+        }
+        else if (Context.Kind == ActiveContextKind.Project)
+        {
+            _id = Context.ActiveProject?.Id ?? "";
+            _previewProject = Context.ActiveProject;
+            _previewClient = null;
+        }
+        else
+        {
+            _id = "";
+            _previewClient = null;
+            _previewProject = null;
+        }
+
+        _tried = false;
+        _creatingProject = false;
+        _newName = ""; _newCode = ""; _newSponsor = "MCCSS"; _newManager = ""; _newDesc = "";
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _tried = false;
+        StateHasChanged();
+    }
+
+    private void SetKind(string k)
+    {
+        _kind = k;
+        _id = "";
+        _previewClient = null;
+        _previewProject = null;
+        _tried = false;
+        _creatingProject = false;
+    }
+
+    // -------- Client tab --------
+
+    private void OnClientPicked()
+    {
+        _tried = !string.IsNullOrEmpty(_id);
+        _previewClient = _tried ? Clients.LookupEto(_id) : null;
+    }
+
+    private void FetchClient()
+    {
+        var trimmed = (_id ?? "").Trim();
+        _tried = !string.IsNullOrEmpty(trimmed);
+        _previewClient = _tried ? Clients.LookupEto(trimmed) : null;
+        if (_tried && _previewClient == null)
+        {
+            // Friendly toast so user sees feedback even if Preview block scrolls off
+            Toasts.Show(ToastKind.Warning, $"No client found for ETO ID “{trimmed}”.");
+        }
+    }
+
+    private void UseSample(string id)
+    {
+        _id = id;
+        FetchClient();
+    }
+
+    private void OnEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (_previewClient == null) FetchClient();
+            else if (CanApply()) Apply();
+        }
+    }
+
+    // -------- Project tab --------
+
+    private void OnProjectChanged()
+    {
+        _tried = !string.IsNullOrEmpty(_id);
+        _previewProject = _tried ? Projects.FindById(_id) : null;
+    }
+
+    private void StartCreate()
+    {
+        _creatingProject = true;
+        _newName = ""; _newCode = ""; _newSponsor = "MCCSS"; _newManager = ""; _newDesc = "";
+    }
+
+    private void CancelCreate()
+    {
+        _creatingProject = false;
+    }
+
+    private void FinishCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newCode)) return;
+        var p = Projects.Create(_newName.Trim(), _newCode.Trim(),
+                                string.IsNullOrWhiteSpace(_newSponsor) ? "—" : _newSponsor.Trim(),
+                                _newManager.Trim(), _newDesc.Trim());
+        if (Context.TrySetProject(p.Id, out var _))
+        {
+            Toasts.Show(ToastKind.Success, $"Project “{p.Name}” created and set as active.");
+            Close();
+        }
+    }
+
+    private bool CanApply() => _kind == "client" ? _previewClient != null : _previewProject != null;
+
+    private void Apply()
+    {
+        if (_kind == "client" && _previewClient != null)
+        {
+            if (Context.TrySetClient(_previewClient.EtoId, out var msg))
+            {
+                Toasts.Show(ToastKind.Success, msg);
+                Close();
+            }
+        }
+        else if (_kind == "project" && _previewProject != null)
+        {
+            if (Context.TrySetProject(_previewProject.Id, out var msg))
+            {
+                Toasts.Show(ToastKind.Success, msg);
+                Close();
+            }
+        }
+    }
+
+    private void ClearActive()
+    {
+        Context.Clear();
+        Toasts.Show(ToastKind.Success, "Active context cleared");
+        Close();
+    }
+}

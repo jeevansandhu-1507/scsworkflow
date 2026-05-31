@@ -1,0 +1,158 @@
+@page "/"
+@implements IDisposable
+@inject FundingCommitmentService Fc
+@inject PermanentFundingService Pf
+@inject ProjectService Projects
+@inject ClientDirectoryService Clients
+@inject VendorService Vendors
+@inject NotificationService Notify
+@inject AuditService Audit
+@inject FinancialPressureService Fp
+@inject InvoicingService Inv
+@inject SchedulingService Sched
+@inject UserContextService UserCtx
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · @L.Dashboard</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Dashboard</div>
+            <h1>@L.T($"Welcome back, {FirstName(UserCtx.Effective.FullName)}", $"Bienvenue, {FirstName(UserCtx.Effective.FullName)}")</h1>
+            <p class="sub">@RoleInfo.Label(UserCtx.Effective.Role) · @L.T("Choose a workspace to get started.", "Choisissez un espace de travail.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat stat-money-main" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                <div class="lbl">@L.FundingCommitments</div>
+                <div class="v">@Fc.VisibleToCurrent().Count()</div>
+                <div class="sub">@DraftCount() drafts · @PendingCount() pending</div>
+            </div>
+            <div class="stat" @onclick='() => Nav.NavigateTo("/permanent-funding")'>
+                <div class="lbl">@L.PermanentFunding</div>
+                <div class="v">@Pf.Records.Count</div>
+                <div class="sub">@Pf.EligibleForRollover().Count() rollover-eligible</div>
+            </div>
+            <div class="stat" @onclick='() => Nav.NavigateTo("/rollover")'>
+                <div class="lbl">@L.Rollover</div>
+                <div class="v">@DraftCount()</div>
+                <div class="sub">queue ready for review</div>
+            </div>
+            <div class="stat" @onclick='() => Nav.NavigateTo("/notifications")'>
+                <div class="lbl">@L.Notifications</div>
+                <div class="v">@Notify.UnreadCountForCurrent()</div>
+                <div class="sub">unread</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="db-card">
+            <div class="db-head"><h3>@L.T("Recent activity", "Activité récente")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("/audit")'>View all →</span></div>
+            <div class="db-list">
+                @foreach (var a in Audit.Entries.Take(7))
+                {
+                    <div class="db-row">
+                        <div class="db-cell mono">@a.Timestamp.ToString("MMM dd · HH:mm")</div>
+                        <div class="db-cell">
+                            <div class="db-row-title">@a.Action</div>
+                            <div class="db-row-sub">@a.EntityLabel</div>
+                        </div>
+                        <div class="db-cell muted">@a.Actor</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="db-card">
+            <div class="db-head"><h3>@L.T("Inbox", "Boîte de réception")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("/notifications")'>View all →</span></div>
+            <div class="db-list">
+                @foreach (var n in Notify.ForCurrent().Take(6))
+                {
+                    <div class="db-row notif @($"lvl-{n.Level.ToString().ToLower()}") @(n.Read ? "read" : "")">
+                        <div class="db-cell">
+                            <div class="db-row-title">@n.Title</div>
+                            <div class="db-row-sub">@n.Body</div>
+                        </div>
+                        <div class="db-cell mono muted">@RelativeTime(n.When)</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (UserCtx.IsInternal)
+        {
+            <div class="db-card">
+                <div class="db-head"><h3>@L.T("Open work", "Tâches ouvertes")</h3></div>
+                <div class="db-quick">
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                        <div class="db-q-n">@Fc.Rows.Count(r => r.Status == CommitmentStatus.Draft)</div>
+                        <div>Draft FCs awaiting review</div>
+                    </button>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/financial-pressure")'>
+                        <div class="db-q-n">@Fp.Requests.Count(r => r.Status is FpStatus.Submitted or FpStatus.CmReview or FpStatus.FinanceReview)</div>
+                        <div>Financial Pressure requests</div>
+                    </button>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/invoices")'>
+                        <div class="db-q-n">@Inv.Invoices.Count(i => i.Status == InvoiceStatus.Submitted)</div>
+                        <div>Invoices awaiting approval</div>
+                    </button>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/scheduling")'>
+                        <div class="db-q-n">@Sched.Shifts.Count(s => s.Status == ShiftStatus.Submitted)</div>
+                        <div>Submitted shifts</div>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        UserCtx.OnChange += R;
+        Fc.OnChange += R;
+        Notify.OnChange += R;
+        Audit.OnChange += R;
+        Fp.OnChange += R;
+        Inv.OnChange += R;
+        Sched.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private int DraftCount() => Fc.VisibleToCurrent().Count(r => r.Status == CommitmentStatus.Draft);
+    private int PendingCount() => Fc.VisibleToCurrent().Count(r => r.Status is CommitmentStatus.Pending or CommitmentStatus.Awaiting
+                                                                              or CommitmentStatus.Special or CommitmentStatus.Finance
+                                                                              or CommitmentStatus.Ministry);
+
+    private static string FirstName(string s)
+    {
+        var i = s.IndexOf(' ');
+        return i < 0 ? s : s.Substring(0, i);
+    }
+
+    private static string RelativeTime(DateTime t)
+    {
+        var span = DateTime.Now - t;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
+        return t.ToString("MMM dd");
+    }
+
+    public void Dispose()
+    {
+        UserCtx.OnChange -= R;
+        Fc.OnChange -= R;
+        Notify.OnChange -= R;
+        Audit.OnChange -= R;
+        Fp.OnChange -= R;
+        Inv.OnChange -= R;
+        Sched.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

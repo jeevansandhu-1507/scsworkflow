@@ -1,0 +1,153 @@
+@page "/permanent-funding"
+@implements IDisposable
+@inject PermanentFundingService Pf
+@inject FundingCommitmentService Fc
+@inject NavigationManager Nav
+@inject LocaleService L
+@inject UserContextService UserCtx
+
+<PageTitle>SCS Portal · @L.PermanentFunding</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.PermanentFunding</div>
+            <h1>@L.T("Permanent funding sources", "Sources de financement permanent")</h1>
+            <p class="sub">@L.T("Master funding records that drive commitments, rollovers, and budget tracking.", "Sources principales utilisées pour engagements, reports et suivi budgétaire.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat stat-money-main">
+                <div class="lbl">Total budget</div>
+                <div class="v">@Money(Pf.Records.Sum(r => r.BudgetAmount))</div>
+                <div class="sub">across @Pf.Records.Count records</div>
+            </div>
+            <div class="stat" @onclick='() => SetFilter("client")'>
+                <div class="lbl">Client-based</div>
+                <div class="v">@Pf.Records.Count(r => r.Association == AssociationType.Client)</div>
+                <div class="sub">linked to clients</div>
+            </div>
+            <div class="stat" @onclick='() => SetFilter("project")'>
+                <div class="lbl">Project-based</div>
+                <div class="v">@Pf.Records.Count(r => r.Association == AssociationType.Project)</div>
+                <div class="sub">linked to projects</div>
+            </div>
+            <div class="stat" @onclick='() => Nav.NavigateTo("/rollover")'>
+                <div class="lbl">Rollover-eligible</div>
+                <div class="v">@Pf.EligibleForRollover().Count()</div>
+                <div class="sub">go to queue →</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="filter-chips">
+            <button class="chip @(_filter == "" ? "active" : "")" @onclick='() => SetFilter("")'>All <span class="count">@Pf.Records.Count</span></button>
+            <button class="chip @(_filter == "client" ? "active" : "")" @onclick='() => SetFilter("client")'>Client <span class="count">@Pf.Records.Count(r => r.Association == AssociationType.Client)</span></button>
+            <button class="chip @(_filter == "project" ? "active" : "")" @onclick='() => SetFilter("project")'>Project <span class="count">@Pf.Records.Count(r => r.Association == AssociationType.Project)</span></button>
+            <button class="chip @(_filter == "rollover" ? "active" : "")" @onclick='() => SetFilter("rollover")'>Rollover-eligible <span class="count">@Pf.EligibleForRollover().Count()</span></button>
+        </div>
+        <div class="toolbar-right">
+            <input class="modal-input" style="min-width:280px" placeholder="Search reference, client/project, program…" @bind="_search" @bind:event="oninput" />
+        </div>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Association</th>
+                    <th>Linked entity</th>
+                    <th>Program</th>
+                    <th>Fiscal Year</th>
+                    <th class="num">Budget</th>
+                    <th class="num">Committed</th>
+                    <th class="num">Remaining</th>
+                    <th>Status</th>
+                    <th class="num">FCs</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pf in Filtered())
+                {
+                    var fcs = Fc.Rows.Where(r => r.PermanentFundingId == pf.Id).ToList();
+                    var committed = fcs.Sum(r => r.Total);
+                    var remaining = pf.BudgetAmount - committed;
+                    <tr @onclick='() => Nav.NavigateTo("/permanent-funding/" + pf.Id)'>
+                        <td class="mono">@pf.Reference</td>
+                        <td>
+                            <span class="assoc-pill @(pf.Association == AssociationType.Client ? "client" : "project")">
+                                @(pf.Association == AssociationType.Client ? "Client" : "Project")
+                            </span>
+                        </td>
+                        <td>@pf.LinkedEntityName <span class="muted mono">@pf.LinkedEntityId</span></td>
+                        <td>@pf.Program</td>
+                        <td class="mono">@pf.FiscalYear</td>
+                        <td class="num mono">@Money(pf.BudgetAmount)</td>
+                        <td class="num mono">@Money(committed)</td>
+                        <td class="num mono @(remaining < 0 ? "over" : "")">@Money(remaining)</td>
+                        <td>
+                            <span class="status-pill @StatusClass(pf)">@StatusLabel(pf)</span>
+                        </td>
+                        <td class="num mono">@fcs.Count</td>
+                    </tr>
+                }
+                @if (!Filtered().Any())
+                {
+                    <tr><td colspan="10" class="muted" style="text-align:center;padding:30px">No matching records.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private string _filter = "";
+    private string _search = "";
+
+    protected override void OnInitialized()
+    {
+        Pf.OnChange += R;
+        Fc.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void SetFilter(string f) { _filter = f; }
+
+    private IEnumerable<PermanentFunding> Filtered()
+    {
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        return Pf.Records.Where(r =>
+        {
+            if (_filter == "client" && r.Association != AssociationType.Client) return false;
+            if (_filter == "project" && r.Association != AssociationType.Project) return false;
+            if (_filter == "rollover" && (!r.RolloverEligible || r.AlreadyRolledOver || r.Status != PermanentFundingStatus.Active)) return false;
+            if (string.IsNullOrEmpty(q)) return true;
+            var hay = (r.Reference + " " + r.LinkedEntityName + " " + r.LinkedEntityId + " " + r.Program + " " + r.FundingSource + " " + r.FiscalYear).ToLowerInvariant();
+            return hay.Contains(q);
+        });
+    }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string StatusLabel(PermanentFunding pf) =>
+        pf.AlreadyRolledOver ? "Rolled over"
+        : pf.Status == PermanentFundingStatus.Active ? "Active"
+        : pf.Status == PermanentFundingStatus.OnHold ? "On hold"
+        : "Closed";
+
+    private static string StatusClass(PermanentFunding pf) =>
+        pf.AlreadyRolledOver ? "st-csn"
+        : pf.Status == PermanentFundingStatus.Active ? "st-active"
+        : pf.Status == PermanentFundingStatus.OnHold ? "st-pending"
+        : "st-rejected";
+
+    public void Dispose()
+    {
+        Pf.OnChange -= R;
+        Fc.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

@@ -1,0 +1,590 @@
+@inject FundingCommitmentService Svc
+@inject VendorService Vendors
+@inject ClientDirectoryService ClientsSvc
+@inject ToastService Toasts
+@inject UserContextService UserCtx
+@inject NavigationManager Nav
+
+<div class="full-overlay @(_open ? "open" : "")" @onclick="Close"></div>
+<aside class="full-view @(_open ? "open" : "")" aria-hidden="@(_open ? "false" : "true")">
+    @if (_row != null)
+    {
+        var r = _row;
+        var st = StatusInfo.For(r.Status);
+        var totalPlan = r.TotalPlan;
+        var totalCommit = r.Total;
+        var showApprove = r.Status is CommitmentStatus.Draft or CommitmentStatus.Pending
+                          or CommitmentStatus.Awaiting or CommitmentStatus.Special
+                          or CommitmentStatus.Finance or CommitmentStatus.Ministry;
+        var showRevise = r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Rejected;
+
+        <header class="fv-head">
+            <div class="fv-head-left">
+                <div class="fv-eyebrow">Funding Commitment</div>
+                <h2>@r.ClientName · #@r.ClientId</h2>
+                <p class="fv-sub">@r.CommitId · @st.Label · Plan @Money(totalPlan) · Committed @Money(totalCommit)</p>
+            </div>
+            <div class="fv-head-right">
+                <button class="btn ghost" @onclick="Close" title="Back to list (Esc)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" /></svg>
+                    Back to list
+                </button>
+                @if (UserCtx.IsFinance || UserCtx.IsAdmin)
+                {
+                    <button class="btn primary" style="background:linear-gradient(180deg,#2c87a3,#1f6a87);border-color:#1f6a87;color:#fff"
+                            @onclick="GoAddPermanentFunding">+ Add Permanent Funding</button>
+                }
+                @if ((UserCtx.IsFinance || UserCtx.IsAdmin || UserCtx.IsCaseManager) && r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Rejected)
+                {
+                    <button class="btn" style="background:#fef6e8;border-color:#e6c980;color:#8a5a00" @onclick="OnRevise">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        Revise FC
+                    </button>
+                }
+                @if (UserCtx.IsCaseManager || UserCtx.IsFinance || UserCtx.IsAdmin)
+                {
+                    <button class="btn" @onclick="OpenAssociateVendor">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><path d="M20 8v6M23 11h-6" /></svg>
+                        Associate Vendor
+                    </button>
+                }
+                @if ((UserCtx.IsAdmin || UserCtx.IsFinance || UserCtx.IsCaseManager) && r.Status is CommitmentStatus.Approved or CommitmentStatus.Active)
+                {
+                    <button class="btn" style="background:#dceaf5;border-color:#aed0eb;color:#1b4a7a" @onclick="OnResendInvites">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4z" /></svg>
+                        Resend invites
+                    </button>
+                }
+                @if (showApprove)
+                {
+                    <button class="btn primary" @onclick="OnPrimaryApprove">Approve</button>
+                }
+                else if (showRevise)
+                {
+                    <button class="btn primary" @onclick="OnPrimaryRevise">Send back to Draft</button>
+                }
+                <button class="fv-close" @onclick="Close" title="Close (Esc)" aria-label="Close detail view">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                </button>
+            </div>
+        </header>
+        <nav class="fv-tabs">
+            <button class="@(_tab == "details" ? "active" : "")" @onclick='() => SelectTab("details")'>Details</button>
+            <button class="@(_tab == "funding" ? "active" : "")" @onclick='() => SelectTab("funding")'>Funding Allocation</button>
+            <button class="@(_tab == "services" ? "active" : "")" @onclick='() => SelectTab("services")'>Service Funding</button>
+            <button class="@(_tab == "attachments" ? "active" : "")" @onclick='() => SelectTab("attachments")'>
+                Attachments <span class="ct">@r.Attachments</span>
+            </button>
+            <button class="@(_tab == "messages" ? "active" : "")" @onclick='() => SelectTab("messages")'>
+                Messages <span class="ct">@r.Messages</span>
+            </button>
+            <button class="@(_tab == "history" ? "active" : "")" @onclick='() => SelectTab("history")'>
+                History <span class="ct">@r.History</span>
+            </button>
+        </nav>
+        <div class="fv-body">
+            @switch (_tab)
+            {
+                case "details":
+                    @DetailsTab(r, st, totalPlan, totalCommit)
+                    @FundingTab(r, totalPlan, totalCommit)
+                    @ServicesTab(r, totalPlan)
+                    break;
+                case "funding":
+                    @FundingTab(r, totalPlan, totalCommit)
+                    break;
+                case "services":
+                    @ServicesTab(r, totalPlan)
+                    break;
+                case "attachments":
+                    @AttachmentsTab(r)
+                    break;
+                case "messages":
+                    @MessagesTab(r)
+                    break;
+                case "history":
+                    @HistoryTab(r, st)
+                    break;
+            }
+        </div>
+    }
+</aside>
+
+@if (_associateOpen && _row != null)
+{
+    <div class="modal-overlay" @onclick="() => _associateOpen = false"></div>
+    <div class="modal-card" style="width:min(520px,94vw)" @onclick:stopPropagation="true">
+        <header class="modal-head">
+            <div>
+                <div class="modal-eyebrow">Associate vendor</div>
+                <h2>@_row.ClientName · @_row.CommitId</h2>
+            </div>
+            <button class="bd-close" @onclick="() => _associateOpen = false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+        </header>
+        <div class="modal-body">
+            <div class="modal-hint">Adds a new service line to this Funding Commitment with the chosen vendor. Only approved vendors are listed.</div>
+            <div class="modal-row">
+                <label class="modal-lbl">Approved vendor <span class="req">*</span></label>
+                <select class="modal-input" @bind="_avVendor">
+                    <option value="">— Select a vendor —</option>
+                    @foreach (var v in Vendors.Approved())
+                    {
+                        <option value="@v.Name">@v.Name · @(v.Type == VendorType.Isw ? "ISW" : "SP") · @v.Contact</option>
+                    }
+                </select>
+            </div>
+            <div class="modal-row">
+                <label class="modal-lbl">Service type <span class="req">*</span></label>
+                <select class="modal-input" @bind="_avService">
+                    <option value="">— Select service type —</option>
+                    @foreach (var n in Catalog.WizardServiceNames) { <option value="@n">@n</option> }
+                </select>
+            </div>
+            @if (_row.MccssTypes.Count > 1)
+            {
+                <div class="modal-row">
+                    <label class="modal-lbl">Map to MCCSS plan type</label>
+                    <select class="modal-input" @bind="_avPlan">
+                        @foreach (var t in _row.MccssTypes) { <option value="@t">@t</option> }
+                    </select>
+                </div>
+            }
+            <div class="modal-grid-2">
+                <div class="modal-row">
+                    <label class="modal-lbl">Rate ($/unit)</label>
+                    <input type="number" min="0" step="0.01" class="modal-input"
+                           value="@_avRate"
+                           @onchange="@(e => _avRate = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0)" />
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Units</label>
+                    <input type="number" min="0" step="1" class="modal-input"
+                           value="@_avUnits"
+                           @onchange="@(e => _avUnits = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0)" />
+                </div>
+            </div>
+            <div class="modal-summary">
+                <div class="row"><span class="lbl">New line total</span><span><strong>@(_avRate * _avUnits).ToString("C2")</strong></span></div>
+            </div>
+        </div>
+        <footer class="modal-foot">
+            <button class="btn ghost" @onclick="() => _associateOpen = false">Cancel</button>
+            <button class="btn primary" @onclick="ConfirmAssociate"
+                    disabled="@(string.IsNullOrEmpty(_avVendor) || string.IsNullOrEmpty(_avService))">
+                Associate &amp; add line
+            </button>
+        </footer>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private string _tab = "details";
+    private FundingCommitment? _row;
+
+    private bool _associateOpen;
+    private string _avVendor = "";
+    private string _avService = "";
+    private string _avPlan = "";
+    private decimal _avRate = 0;
+    private decimal _avUnits = 0;
+
+    public void Open(string commitId, string tab)
+    {
+        _row = Svc.FindByCommitId(commitId);
+        _tab = string.IsNullOrEmpty(tab) ? "details" : tab;
+        _open = _row != null;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        StateHasChanged();
+    }
+
+    public bool IsOpen => _open;
+
+    private void SelectTab(string tab)
+    {
+        _tab = tab;
+        StateHasChanged();
+    }
+
+    private void GoAddPermanentFunding()
+    {
+        if (_row == null) return;
+        var id = _row.CommitId;
+        Close();
+        Nav.NavigateTo($"/permanent-funding/new?SourceFcId={id}");
+    }
+
+    private void OnRevise()
+    {
+        if (_row == null) return;
+        var id = _row.CommitId;
+        var name = _row.ClientName;
+        Svc.Revise(id);
+        Toasts.Show(ToastKind.Success, $"{name} re-opened for revision (v{_row.Version}).");
+    }
+
+    private void OnResendInvites()
+    {
+        if (_row == null) return;
+        var sent = 0;
+        var skipped = 0;
+
+        // Client invite (only when association is Client)
+        if (_row.Association == AssociationType.Client && !string.IsNullOrEmpty(_row.ClientId))
+        {
+            var c = ClientsSvc.LookupEto(_row.ClientId);
+            if (c != null && !string.IsNullOrEmpty(c.Email))
+            {
+                ClientsSvc.SendInvite(c.EtoId);
+                sent++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        // Vendors from every service line on this FC
+        var vendorNames = _row.Services
+            .Select(s => s.Vendor)
+            .Where(n => !string.IsNullOrEmpty(n) && n != "Unassigned")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var vn in vendorNames)
+        {
+            var v = Vendors.FindByName(vn);
+            if (v != null && v.Status == VendorStatus.Approved && !string.IsNullOrEmpty(v.Email))
+            {
+                Vendors.SendInvite(v.Id);
+                sent++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        if (sent > 0)
+        {
+            var msg = $"Sent {sent} invite{(sent == 1 ? "" : "s")} for FC {_row.CommitId}";
+            if (skipped > 0) msg += $" · {skipped} skipped (no email or unapproved)";
+            Toasts.Show(ToastKind.Success, msg);
+        }
+        else
+        {
+            Toasts.Show(ToastKind.Warning, "No invites sent — recipients have no email on file or vendors aren't approved.");
+        }
+    }
+
+    private void OpenAssociateVendor()
+    {
+        if (_row == null) return;
+        _associateOpen = true;
+        _avVendor = "";
+        _avService = "";
+        _avPlan = _row.MccssTypes.FirstOrDefault() ?? "";
+        _avRate = 0;
+        _avUnits = 0;
+        StateHasChanged();
+    }
+
+    private void ConfirmAssociate()
+    {
+        if (_row == null || string.IsNullOrEmpty(_avVendor) || string.IsNullOrEmpty(_avService)) return;
+        _row.Services.Add(new ServiceLine
+        {
+            Name = _avService,
+            Plan = string.IsNullOrEmpty(_avPlan) ? (_row.MccssTypes.FirstOrDefault() ?? "") : _avPlan,
+            Provider = Vendors.Vendors.FirstOrDefault(v => v.Name == _avVendor)?.Type == VendorType.Sp
+                ? "Service Provider Organization"
+                : "Independent Support Worker",
+            Vendor = _avVendor,
+            Unit = "Hour",
+            Rate = _avRate,
+            Units = _avUnits,
+            HasMaxRate = true,
+            HasMaxUnits = true
+        });
+        Svc.NotifyChanged();
+        Toasts.Show(ToastKind.Success, $"Added {_avVendor} to {_row.ClientName}.");
+        _associateOpen = false;
+    }
+
+    private void OnPrimaryApprove()
+    {
+        if (_row == null) return;
+        Svc.Approve(_row.CommitId);
+        Toasts.Show(ToastKind.Success, $"{_row.ClientName} approved");
+        Close();
+    }
+
+    private void OnPrimaryRevise()
+    {
+        if (_row == null) return;
+        Svc.Revise(_row.CommitId);
+        Toasts.Show(ToastKind.Success, $"{_row.ClientName} sent back to draft");
+        Close();
+    }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private RenderFragment DetailsTab(FundingCommitment r, StatusInfo st, decimal totalPlan, decimal totalCommit) => @<text>
+        <section class="fv-sec">
+            <div class="fv-sec-head"><span class="fv-sec-num">1</span><h3>Client &amp; Commitment Details</h3></div>
+            <div class="fv-sec-body">
+                <div class="fv-field"><div class="lbl">Client</div><div class="val">@r.ClientName <span style="color:var(--ink-3);font-family:'Geist Mono',monospace;font-weight:400">(#@r.ClientId)</span></div></div>
+                <div class="fv-field">
+                    <div class="lbl">Status</div>
+                    <div class="val"><span class="status-pill @st.CssClass" style="cursor:default">@st.Label</span></div>
+                </div>
+                <div class="fv-field"><div class="lbl">Funding Type</div><div class="val">@(string.IsNullOrEmpty(r.FundingType) ? "—" : r.FundingType)</div></div>
+                <div class="fv-field"><div class="lbl">Resident Placement Type</div><div class="val">@(string.IsNullOrEmpty(r.Placement) ? "—" : r.Placement)</div></div>
+                <div class="fv-field"><div class="lbl">Plan Start Date</div><div class="val mono">@r.PlanStart</div></div>
+                <div class="fv-field"><div class="lbl">Plan End Date</div><div class="val mono">@r.PlanEnd</div></div>
+                <div class="fv-field">
+                    <div class="lbl">Funding Commitment Outcome</div>
+                    <div class="val @(string.IsNullOrEmpty(r.Outcome) ? "muted" : "")">@(string.IsNullOrEmpty(r.Outcome) ? "Not provided" : r.Outcome)</div>
+                </div>
+                <div class="fv-field">
+                    <div class="lbl">Alternative Funding Sources</div>
+                    <div class="val @(string.IsNullOrEmpty(r.AltSources) ? "muted" : "")">@(string.IsNullOrEmpty(r.AltSources) ? "Not provided" : r.AltSources)</div>
+                </div>
+            </div>
+        </section>
+    </text>;
+
+    private RenderFragment FundingTab(FundingCommitment r, decimal totalPlan, decimal totalCommit) => @<text>
+        @{
+            var remaining = totalPlan - totalCommit;
+            var over = remaining < 0;
+        }
+        <section class="fv-sec">
+            <div class="fv-sec-head"><span class="fv-sec-num">2</span><h3>Funding Allocation</h3></div>
+            <div class="fv-sec-body">
+                <div class="fv-field"><div class="lbl">Main Funder</div><div class="val">@r.MainFunder</div></div>
+                <div class="fv-field">
+                    <div class="lbl">Additional Funder(s)</div>
+                    <div class="val @(r.AddlFunder == "— None —" ? "muted" : "")">@(r.AddlFunder == "— None —" ? "None" : r.AddlFunder)</div>
+                </div>
+                <div class="fv-field"><div class="lbl">SCS Team Accountable</div><div class="val">@r.Ministry</div></div>
+                <div class="fv-field"><div class="lbl">Total Funding Commitment</div><div class="val money">@Money(totalPlan)</div></div>
+                <div class="fv-field">
+                    <div class="lbl">Total Committed (services)</div>
+                    <div class="val money @(over ? "over" : "")">@Money(totalCommit)</div>
+                </div>
+                <div class="fv-field">
+                    <div class="lbl">@(over ? "Over Budget" : "Remaining")</div>
+                    <div class="val money @(over ? "over" : "")">@Money(Math.Abs(remaining))</div>
+                </div>
+            </div>
+        </section>
+    </text>;
+
+    private RenderFragment ServicesTab(FundingCommitment r, decimal totalPlan) => @<text>
+        @{
+            var assignedByType = new Dictionary<string, decimal>();
+            foreach (var t in r.MccssTypes)
+                assignedByType[t] = r.Services.Where(s => s.Plan == t).Sum(s => s.LineTotal);
+        }
+        <section class="fv-sec">
+            <div class="fv-sec-head"><span class="fv-sec-num">3</span><h3>Service Funding Details</h3></div>
+            <div class="fv-sec-body wide">
+                <div class="fv-field"><div class="lbl">Team Accountable</div><div class="val">@r.Ministry</div></div>
+                <div class="fv-field"><div class="lbl">MCCSS Plan Type</div><div class="val">@r.PlanType</div></div>
+                <div class="fv-field" style="grid-column:1 / -1">
+                    <div class="lbl">MCCSS Funding Types <span style="opacity:.55">(@r.MccssTypes.Count)</span></div>
+                    <ol class="fv-types-list">
+                        @foreach (var t in r.MccssTypes) { <li>@t</li> }
+                    </ol>
+                </div>
+                <div class="fv-field" style="grid-column:1 / -1">
+                    <div class="lbl">Plan Amounts</div>
+                    <div class="fv-amount-grid">
+                        @foreach (var t in r.MccssTypes)
+                        {
+                            var amt = r.PlanAmounts.TryGetValue(t, out var v) ? v : 0;
+                            <div class="fv-amount-cell">
+                                <div class="lbl"><strong>@Catalog.ShortFundingLabel(t)</strong> @t</div>
+                                <div class="v">@Money(amt)</div>
+                            </div>
+                        }
+                        <div class="fv-amount-cell total">
+                            <div class="lbl"><strong>Total Plan</strong> across all types</div>
+                            <div class="v">@Money(totalPlan)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fv-field" style="grid-column:1 / -1">
+                    <div class="lbl">Service Funding Detail Table</div>
+                    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
+                        <table class="fv-svc-table">
+                            <thead>
+                                <tr>
+                                    <th>Service Name</th><th>Plan Type</th><th>Provider Type</th><th>Vendor</th>
+                                    <th>Unit</th><th>Rate</th><th>Units</th><th>Total</th><th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sv in r.Services)
+                                {
+                                    var lt = sv.LineTotal;
+                                    <tr>
+                                        <td>
+                                            @(string.IsNullOrEmpty(sv.Name) ? (MarkupString)"<span class=\"muted\">—</span>" : (MarkupString)sv.Name)
+                                            @if (sv.GlCode > 0)
+                                            {
+                                                <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@sv.GlName">
+                                                    GL: @sv.GlCode
+                                                </div>
+                                            }
+                                        </td>
+                                        <td><span class="pill">@(string.IsNullOrEmpty(sv.Plan) ? "—" : sv.Plan)</span></td>
+                                        <td>@sv.Provider</td>
+                                        <td>
+                                            @if (sv.Vendor == "Unassigned")
+                                            {
+                                                <span class="pill unassigned-pill">Unassigned</span>
+                                            }
+                                            else
+                                            {
+                                                @sv.Vendor
+                                            }
+                                        </td>
+                                        <td>@sv.Unit</td>
+                                        <td class="num">@(sv.Rate != 0 ? Money(sv.Rate) : "—")</td>
+                                        <td class="num">@(sv.Units != 0 ? sv.Units.ToString("0.##") : "—")</td>
+                                        <td class="num">@(lt != 0 ? Money(lt) : "—")</td>
+                                        <td class="muted">@sv.Note</td>
+                                    </tr>
+                                }
+                                @foreach (var t in r.MccssTypes)
+                                {
+                                    var plan = r.PlanAmounts.TryGetValue(t, out var v) ? v : 0;
+                                    var used = assignedByType.TryGetValue(t, out var u) ? u : 0;
+                                    var remainder = plan - used;
+                                    if (remainder > 0)
+                                    {
+                                        <tr class="unassigned">
+                                            <td class="muted">—</td>
+                                            <td><span class="pill">@t</span></td>
+                                            <td class="muted">—</td>
+                                            <td><span class="pill unassigned-pill">Unassigned</span></td>
+                                            <td class="muted">—</td>
+                                            <td class="num muted">—</td>
+                                            <td class="num muted">—</td>
+                                            <td class="num">@Money(remainder)</td>
+                                            <td class="muted">Pending vendor assignment</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+        @if (!string.IsNullOrEmpty(r.AddlFunder) && r.AddlFunder != "— None —")
+        {
+            <section class="fv-addl-strip">
+                <h4>@r.AddlFunder</h4>
+                <div class="row">
+                    <div class="fv-field"><div class="lbl">Commitment Amount</div><div class="val money">@Money(r.AddlFunderAmount)</div></div>
+                    <div class="fv-field"><div class="lbl">Assigned to Vendor</div><div class="val money">@Money(r.AddlFunderVendor)</div></div>
+                    <div class="fv-field"><div class="lbl">Unassigned</div><div class="val money">@Money(Math.Max(0, r.AddlFunderAmount - r.AddlFunderVendor))</div></div>
+                </div>
+            </section>
+        }
+    </text>;
+
+    private RenderFragment AttachmentsTab(FundingCommitment r) => @<text>
+        @if (r.Attachments == 0)
+        {
+            <div class="fv-sec">
+                <div class="fv-empty">
+                    <div class="ic">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21.4 11.05 12.25 20.2a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49" /></svg>
+                    </div>
+                    <div>No attachments on this commitment yet.</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            string[] names = { "Quote-Maple-Care.pdf", "SSAH-eligibility-letter.pdf", "Vendor-W9.pdf", "Care-plan-2026.pdf", "Receipt-March.pdf", "Approval-email.eml" };
+            string[] sizes = { "142 KB", "88 KB", "62 KB", "310 KB", "24 KB", "11 KB" };
+            <div class="fv-sec">
+                <div class="fv-att-list">
+                    @for (var i = 0; i < r.Attachments; i++)
+                    {
+                        var nm = names[i % names.Length];
+                        var sz = sizes[i % sizes.Length];
+                        <div class="it">
+                            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21.4 11.05 12.25 20.2a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49" /></svg></div>
+                            <div class="body">
+                                <div class="ttl">@nm</div>
+                                <div class="when">@sz · uploaded @r.Date</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </text>;
+
+    private RenderFragment MessagesTab(FundingCommitment r) => @<text>
+        @if (r.Messages == 0)
+        {
+            <div class="fv-sec">
+                <div class="fv-empty">
+                    <div class="ic">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                    </div>
+                    <div>No messages yet.</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            string[] senders = { "Fatoumata Diallo", "Bhavesh Mishra", "Parth Mehta", "Aisha Khan" };
+            string[] lines = {
+                "Confirmed the rate change with the vendor — please review.",
+                "Family has requested a change to the start date.",
+                "Approval forwarded to Finance for final sign-off.",
+                "Vendor onboarding paperwork completed."
+            };
+            <div class="fv-sec">
+                <div class="fv-msg-list">
+                    @for (var i = 0; i < r.Messages; i++)
+                    {
+                        var sender = senders[i % senders.Length];
+                        var text = lines[i % lines.Length];
+                        <div class="it">
+                            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg></div>
+                            <div class="body">
+                                <div class="ttl">@sender</div>
+                                <div class="when">@r.Date · @r.Time</div>
+                                <div class="desc">@text</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </text>;
+
+    private RenderFragment HistoryTab(FundingCommitment r, StatusInfo st) => @<text>
+        <div class="fv-sec">
+            <div class="fv-sec-head"><span class="fv-sec-num">H</span><h3>Audit history</h3></div>
+            <EntityHistory EntityType="FundingCommitment" EntityId="@r.CommitId" />
+        </div>
+    </text>;
+}

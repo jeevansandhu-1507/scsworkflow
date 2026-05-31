@@ -1,0 +1,643 @@
+@page "/scheduling"
+@implements IDisposable
+@inject SchedulingService Sched
+@inject FundingCommitmentService Fc
+@inject UserContextService UserCtx
+@inject ActiveContextService ActiveCtx
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · @L.Scheduling</PageTitle>
+
+<section class="page">
+    @if (UserCtx.Effective.Role == AppRole.VendorSp)
+    {
+        <div class="empty-state" style="margin-top:24px">
+            <div class="empty-title">Scheduling is for Independent Support Workers</div>
+            <div class="empty-sub">
+                Service Provider organizations don't use the shift calendar — they bill the supports they deliver
+                directly via the manual invoice builder.
+            </div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/invoices")'>Go to invoicing</button>
+        </div>
+    }
+    else
+    {
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Scheduling</div>
+            <h1>@L.T("Shift calendar", "Calendrier des quarts")</h1>
+            <p class="sub">@L.T("Plan, complete, and submit shifts. ISWs can convert submitted shifts into invoices (FRD §8).", "Planifier, compléter et soumettre des quarts.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat" @onclick='() => _filter = "all"'>
+                <div class="lbl">Total</div>
+                <div class="v">@Sched.ForCurrentUser().Count()</div>
+                <div class="sub">in view</div>
+            </div>
+            <div class="stat" @onclick='() => _filter = "planned"'>
+                <div class="lbl">Planned</div>
+                <div class="v">@Sched.ForCurrentUser().Count(s => s.Status == ShiftStatus.Planned)</div>
+                <div class="sub">upcoming</div>
+            </div>
+            <div class="stat" @onclick='() => _filter = "completed"'>
+                <div class="lbl">Completed</div>
+                <div class="v">@Sched.ForCurrentUser().Count(s => s.Status == ShiftStatus.Completed)</div>
+                <div class="sub">ready to submit</div>
+            </div>
+            <div class="stat" @onclick='() => _filter = "submitted"'>
+                <div class="lbl">Submitted</div>
+                <div class="v">@Sched.ForCurrentUser().Count(s => s.Status == ShiftStatus.Submitted)</div>
+                <div class="sub">awaiting invoice</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="cal-strip">
+        <button class="btn" @onclick="() => _month = _month.AddMonths(-1)">‹</button>
+        <h3 style="margin:0 12px;min-width:170px;text-align:center">@_month.ToString("MMMM yyyy")</h3>
+        <button class="btn" @onclick="() => _month = _month.AddMonths(1)">›</button>
+        <div style="flex:1"></div>
+        @{
+            var submittedCount = Sched.ForCurrentUser().Count(s => s.Status == ShiftStatus.Submitted);
+            var canSchedule = UserCtx.IsVendor || UserCtx.IsInternal || UserCtx.IsClient;
+        }
+        @if (canSchedule)
+        {
+            <button class="btn primary" @onclick="ToggleNewShift">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+                @(_newShiftOpen ? "Close" : "New Shift")
+            </button>
+            <button class="btn" @onclick="ToggleBulkAdd">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z" /><path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></svg>
+                @(_bulkOpen ? "Close Bulk" : "Bulk Add")
+            </button>
+        }
+        @if (submittedCount > 0)
+        {
+            <button class="btn primary" @onclick='() => Nav.NavigateTo("/invoices")'>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+                Generate invoice (@submittedCount submitted shift@(submittedCount == 1 ? "" : "s"))
+            </button>
+        }
+    </div>
+
+    @if (_newShiftOpen)
+    {
+        <div class="new-shift-card">
+            <div class="new-shift-head">
+                <strong>Schedule a new shift</strong>
+                @if (ActiveCtx.HasActive)
+                {
+                    <span class="muted" style="margin-left:8px">for @ActiveCtx.DisplayName · @ActiveCtx.DisplayId</span>
+                }
+                else
+                {
+                    <span class="muted" style="margin-left:8px;color:var(--danger)">⚠ no active client/project set</span>
+                }
+            </div>
+            <div class="new-shift-grid">
+                <div class="modal-row">
+                    <label class="modal-lbl">Funding commitment</label>
+                    <select class="modal-input" @bind="_newFc" @bind:after="OnFcPicked">
+                        <option value="">— Select FC —</option>
+                        @foreach (var f in EligibleFcs())
+                        {
+                            <option value="@f.CommitId">@f.CommitId · @f.ClientName · @f.Status</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Support type (from this FC)</label>
+                    <select class="modal-input" @bind="_newSupport" @bind:after="OnSupportPicked">
+                        @{
+                            var svcs = AvailableServicesForFc().ToList();
+                        }
+                        @if (svcs.Count == 0)
+                        {
+                            <option value="">— Pick an FC first —</option>
+                        }
+                        else
+                        {
+                            @foreach (var s in svcs)
+                            {
+                                <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Date</label>
+                    <input type="date" class="modal-input"
+                           value="@_newDate.ToString("yyyy-MM-dd")"
+                           @onchange="@(e => _newDate = DateTime.TryParse(e.Value?.ToString(), out var dt) ? dt : DateTime.Today)" />
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Start</label>
+                    <input type="time" class="modal-input"
+                           value="@_newStart.ToString(@"hh\:mm")"
+                           @onchange="@(e => _newStart = TimeSpan.TryParse(e.Value?.ToString(), out var ts) ? ts : new TimeSpan(9,0,0))" />
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">End</label>
+                    <input type="time" class="modal-input"
+                           value="@_newEnd.ToString(@"hh\:mm")"
+                           @onchange="@(e => _newEnd = TimeSpan.TryParse(e.Value?.ToString(), out var ts) ? ts : new TimeSpan(11,0,0))" />
+                </div>
+                <div class="modal-row">
+                    <label class="modal-lbl">Rate ($/hour)</label>
+                    <input type="number" min="0" step="0.01" class="modal-input"
+                           value="@_newRate"
+                           @onchange="@(e => _newRate = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 45)" />
+                </div>
+            </div>
+            <div class="new-shift-foot">
+                <span class="muted">Total: <strong>@((_newEnd > _newStart ? (decimal)(_newEnd - _newStart).TotalHours : 0m * _newRate).ToString("C2"))</strong></span>
+                <button class="btn ghost" @onclick="() => _newShiftOpen = false">Cancel</button>
+                <button class="btn primary" @onclick="AddShift" disabled="@(!CanAddShift())">Add shift</button>
+            </div>
+        </div>
+    }
+
+    @if (_bulkOpen)
+    {
+        <div class="new-shift-card">
+            <div class="new-shift-head">
+                <strong>Bulk add shifts (Excel-style)</strong>
+                @if (ActiveCtx.HasActive)
+                {
+                    <span class="muted" style="margin-left:8px">for @ActiveCtx.DisplayName · @ActiveCtx.DisplayId</span>
+                }
+                else
+                {
+                    <span class="muted" style="margin-left:8px;color:var(--danger)">⚠ no active client/project set</span>
+                }
+                <span style="margin-left:auto" class="muted">@_bulkRows.Count row@(_bulkRows.Count == 1 ? "" : "s")</span>
+            </div>
+
+            <div style="display:flex;gap:10px;align-items:end;margin-bottom:10px">
+                <div class="modal-row" style="flex:1">
+                    <label class="modal-lbl">Funding commitment (applies to all rows)</label>
+                    <select class="modal-input" @bind="_bulkFc" @bind:after="OnBulkFcPicked">
+                        <option value="">— Select FC —</option>
+                        @foreach (var f in EligibleFcs())
+                        {
+                            <option value="@f.CommitId">@f.CommitId · @f.ClientName · @f.Status</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <table class="bulk-grid">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Support type</th>
+                        <th class="num">Rate</th>
+                        <th class="num">Hrs</th>
+                        <th class="num">Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < _bulkRows.Count; i++)
+                    {
+                        var ix = i;
+                        var row = _bulkRows[ix];
+                        var hrs = row.End > row.Start ? (decimal)(row.End - row.Start).TotalHours : 0m;
+                        var lineTotal = hrs * row.Rate;
+                        <tr>
+                            <td class="mono muted">@(ix + 1)</td>
+                            <td>
+                                <input type="date" class="bulk-input"
+                                       value="@row.Date.ToString("yyyy-MM-dd")"
+                                       @onchange="@(e => row.Date = DateTime.TryParse(e.Value?.ToString(), out var dt) ? dt : DateTime.Today)" />
+                            </td>
+                            <td>
+                                <input type="time" class="bulk-input"
+                                       value="@row.Start.ToString(@"hh\:mm")"
+                                       @onchange="@(e => row.Start = TimeSpan.TryParse(e.Value?.ToString(), out var ts) ? ts : new TimeSpan(9,0,0))" />
+                            </td>
+                            <td>
+                                <input type="time" class="bulk-input"
+                                       value="@row.End.ToString(@"hh\:mm")"
+                                       @onchange="@(e => row.End = TimeSpan.TryParse(e.Value?.ToString(), out var ts) ? ts : new TimeSpan(11,0,0))" />
+                            </td>
+                            <td>
+                                <select class="bulk-input" @bind="row.SupportType" @bind:after="() => OnBulkSupportPicked(row)">
+                                    <option value="">— Pick FC first —</option>
+                                    @foreach (var s in BulkAvailableServices())
+                                    {
+                                        <option value="@s.Name">@s.Name</option>
+                                    }
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" min="0" step="0.01" class="bulk-input num"
+                                       value="@row.Rate"
+                                       @onchange="@(e => row.Rate = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0)" />
+                            </td>
+                            <td class="num mono">@hrs.ToString("0.##")</td>
+                            <td class="num mono"><strong>@lineTotal.ToString("C2")</strong></td>
+                            <td>
+                                <button class="btn ghost" style="padding:2px 8px;color:var(--danger)" @onclick="() => _bulkRows.RemoveAt(ix)">✕</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="new-shift-foot">
+                <button class="btn" @onclick="AddBulkRow">+ Add row</button>
+                <button class="btn" @onclick="() => AddBulkRows(7)">+ Add 7 rows</button>
+                <span class="muted" style="margin-left:auto">
+                    Grand total: <strong>@BulkGrandTotal().ToString("C2")</strong>
+                </span>
+                <button class="btn ghost" @onclick="ToggleBulkAdd">Cancel</button>
+                <button class="btn primary" @onclick="SaveBulk" disabled="@(!CanSaveBulk())">Save @_bulkRows.Count shift@(_bulkRows.Count == 1 ? "" : "s")</button>
+            </div>
+        </div>
+    }
+
+    <div class="calendar">
+        @foreach (var dow in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+        {
+            <div class="cal-dow">@dow</div>
+        }
+        @{
+            var start = new DateTime(_month.Year, _month.Month, 1);
+            var lead = (int)start.DayOfWeek;
+            var days = DateTime.DaysInMonth(_month.Year, _month.Month);
+        }
+        @for (var i = 0; i < lead; i++)
+        {
+            <div class="cal-cell empty"></div>
+        }
+        @for (var d = 1; d <= days; d++)
+        {
+            var day = new DateTime(_month.Year, _month.Month, d);
+            var dayShifts = Sched.ForCurrentUser().Where(s => s.Date.Date == day).ToList();
+            <div class="cal-cell @(day == DateTime.Today ? "today" : "") @(canSchedule ? "clickable" : "")"
+                 @onclick="() => OnCalendarDayClick(day)"
+                 title="@(canSchedule ? "Click to add a shift on this day" : "")">
+                <div class="cal-d">@d</div>
+                @foreach (var s in dayShifts.Take(3))
+                {
+                    <div class="cal-shift sh-@(s.Status.ToString().ToLower())">
+                        <span class="cs-time">@s.Start.ToString(@"hh\:mm")</span>
+                        @s.ClientOrProjectName
+                    </div>
+                }
+                @if (dayShifts.Count > 3)
+                {
+                    <div class="cal-more">+@(dayShifts.Count - 3) more</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="db-card" style="margin-top:20px">
+        <div class="db-head">
+            <h3>@L.T("Shift list", "Liste des quarts")</h3>
+            <div class="filter-chips" style="gap:4px">
+                <button class="chip @(_filter == "all" ? "active" : "")" @onclick='() => _filter = "all"'>All</button>
+                <button class="chip @(_filter == "planned" ? "active" : "")" @onclick='() => _filter = "planned"'>Planned</button>
+                <button class="chip @(_filter == "completed" ? "active" : "")" @onclick='() => _filter = "completed"'>Completed</button>
+                <button class="chip @(_filter == "submitted" ? "active" : "")" @onclick='() => _filter = "submitted"'>Submitted</button>
+            </div>
+        </div>
+        <div class="data-table-wrap inline">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Client / Project</th>
+                        <th>Vendor</th>
+                        <th>Support type</th>
+                        <th class="num">Hours</th>
+                        <th class="num">Total</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Filtered().OrderByDescending(x => x.Date))
+                    {
+                        <tr>
+                            <td class="mono">@s.Date.ToString("MMM dd")</td>
+                            <td class="mono">@s.Start.ToString(@"hh\:mm")–@s.End.ToString(@"hh\:mm")</td>
+                            <td>@s.ClientOrProjectName</td>
+                            <td>@s.VendorName</td>
+                            <td>@s.SupportType</td>
+                            <td class="num mono">@s.Hours</td>
+                            <td class="num mono">@(s.Total.ToString("C"))</td>
+                            <td><span class="status-pill @ShiftClass(s.Status)">@s.Status</span></td>
+                            <td>
+                                @if (s.Status == ShiftStatus.Completed)
+                                {
+                                    <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Submit(s.Id)">Submit</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+</section>
+
+@code {
+    private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private string _filter = "all";
+
+    // New-shift form state
+    private bool _newShiftOpen;
+    private string _newFc = "";
+    private string _newSupport = "Personal Development Support";
+    private DateTime _newDate = DateTime.Today;
+    private TimeSpan _newStart = new(9, 0, 0);
+    private TimeSpan _newEnd = new(11, 0, 0);
+    private decimal _newRate = 45;
+
+    // Bulk-add (Excel-style) state
+    private bool _bulkOpen;
+    private string _bulkFc = "";
+    private List<BulkShiftRow> _bulkRows = new();
+
+    private class BulkShiftRow
+    {
+        public DateTime Date { get; set; } = DateTime.Today;
+        public TimeSpan Start { get; set; } = new(9, 0, 0);
+        public TimeSpan End { get; set; } = new(11, 0, 0);
+        public string SupportType { get; set; } = "";
+        public decimal Rate { get; set; } = 45;
+    }
+
+    private void ToggleNewShift()
+    {
+        _newShiftOpen = !_newShiftOpen;
+        if (_newShiftOpen) _bulkOpen = false;
+    }
+
+    private void OnCalendarDayClick(DateTime day)
+    {
+        if (!(UserCtx.IsVendor || UserCtx.IsInternal || UserCtx.IsClient)) return;
+        _newDate = day;
+        _newShiftOpen = true;
+        _bulkOpen = false;
+    }
+
+    private void ToggleBulkAdd()
+    {
+        _bulkOpen = !_bulkOpen;
+        if (_bulkOpen)
+        {
+            _newShiftOpen = false;
+            if (_bulkRows.Count == 0) AddBulkRows(5);
+        }
+    }
+
+    private void AddBulkRow()
+    {
+        var svcs = BulkAvailableServices().ToList();
+        var first = svcs.FirstOrDefault();
+        _bulkRows.Add(new BulkShiftRow
+        {
+            Date = DateTime.Today,
+            Start = new TimeSpan(9, 0, 0),
+            End = new TimeSpan(11, 0, 0),
+            SupportType = first?.Name ?? "",
+            Rate = first?.Rate ?? 45
+        });
+    }
+
+    private void AddBulkRows(int n)
+    {
+        for (var i = 0; i < n; i++) AddBulkRow();
+    }
+
+    private IEnumerable<ServiceLine> BulkAvailableServices()
+    {
+        if (string.IsNullOrEmpty(_bulkFc)) return Array.Empty<ServiceLine>();
+        var fc = Fc.FindByCommitId(_bulkFc);
+        if (fc == null) return Array.Empty<ServiceLine>();
+        if (UserCtx.IsVendor)
+            return fc.Services.Where(s => MatchesCurrentVendor(s.Vendor));
+        return fc.Services;
+    }
+
+    private void OnBulkFcPicked()
+    {
+        var svcs = BulkAvailableServices().ToList();
+        var first = svcs.FirstOrDefault();
+        foreach (var row in _bulkRows)
+        {
+            if (string.IsNullOrEmpty(row.SupportType) || !svcs.Any(s => s.Name == row.SupportType))
+            {
+                row.SupportType = first?.Name ?? "";
+                row.Rate = first?.Rate ?? row.Rate;
+            }
+        }
+    }
+
+    private void OnBulkSupportPicked(BulkShiftRow row)
+    {
+        var match = BulkAvailableServices().FirstOrDefault(s => s.Name == row.SupportType);
+        if (match != null) row.Rate = match.Rate;
+    }
+
+    private decimal BulkGrandTotal() =>
+        _bulkRows.Sum(r => (r.End > r.Start ? (decimal)(r.End - r.Start).TotalHours : 0m) * r.Rate);
+
+    private bool CanSaveBulk() =>
+        !string.IsNullOrEmpty(_bulkFc)
+        && _bulkRows.Count > 0
+        && _bulkRows.All(r => !string.IsNullOrEmpty(r.SupportType) && r.End > r.Start && r.Rate > 0);
+
+    private void SaveBulk()
+    {
+        if (!CanSaveBulk()) return;
+        var fc = Fc.FindByCommitId(_bulkFc);
+        if (fc == null) return;
+
+        var vendorName = UserCtx.IsVendor ? UserCtx.Effective.FullName
+            : (fc.Services.FirstOrDefault()?.Vendor ?? "Unassigned");
+        if (UserCtx.IsVendor && UserCtx.Effective.LinkedVendorId == "v-isw-01") vendorName = "Ima Worker";
+
+        var count = 0;
+        foreach (var r in _bulkRows)
+        {
+            Sched.Add(new Shift
+            {
+                FcId = _bulkFc,
+                VendorId = UserCtx.Effective.LinkedVendorId ?? "v-isw-01",
+                VendorName = vendorName,
+                ClientOrProjectName = fc.ClientName,
+                SupportType = r.SupportType,
+                Date = r.Date,
+                Start = r.Start,
+                End = r.End,
+                Rate = r.Rate,
+                Status = r.Date < DateTime.Today ? ShiftStatus.Completed : ShiftStatus.Planned
+            });
+            count++;
+        }
+        Toasts.Show(ToastKind.Success, $"Added {count} shift{(count == 1 ? "" : "s")}.");
+        _bulkRows.Clear();
+        _bulkOpen = false;
+    }
+
+    private IEnumerable<FundingCommitment> EligibleFcs()
+    {
+        IEnumerable<FundingCommitment> src = Fc.Rows;
+        if (ActiveCtx.HasActive)
+        {
+            if (ActiveCtx.Kind == ActiveContextKind.Client)
+                src = src.Where(r => r.Association == AssociationType.Client && r.ClientId == ActiveCtx.ActiveClient!.EtoId);
+            else
+                src = src.Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == ActiveCtx.ActiveProject!.Id);
+        }
+        return src.Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Pending);
+    }
+
+    private string? CurrentVendorName()
+    {
+        var u = UserCtx.Effective;
+        if (u.LinkedVendorId == null) return UserCtx.IsVendor ? u.FullName : null;
+        // Lookup vendor name via ActiveCtx by going through associated clients/projects isn't available here,
+        // so just use the user's display name as the matching key for non-vendor roles.
+        return UserCtx.IsVendor ? u.FullName : null;
+    }
+
+    private IEnumerable<ServiceLine> AvailableServicesForFc()
+    {
+        if (string.IsNullOrEmpty(_newFc)) return Array.Empty<ServiceLine>();
+        var fc = Fc.FindByCommitId(_newFc);
+        if (fc == null) return Array.Empty<ServiceLine>();
+
+        // If the user is a vendor, only show service lines on this FC where they're the assigned vendor
+        if (UserCtx.IsVendor)
+        {
+            // The user's "vendor name" is stored on service lines. We try a few matching strategies
+            // because the user's display name and the vendor.Name may differ (e.g. 'Maple Care Admin' user vs 'Maple Care Inc.' vendor).
+            return fc.Services.Where(s => MatchesCurrentVendor(s.Vendor));
+        }
+        return fc.Services;
+    }
+
+    private bool MatchesCurrentVendor(string vendorNameOnLine)
+    {
+        var u = UserCtx.Effective;
+        var candidates = new List<string>();
+        if (!string.IsNullOrEmpty(u.FullName)) candidates.Add(u.FullName);
+        // Also accept any vendor service-line where the assigned vendor's known display name matches
+        // the seeded vendors for the user's LinkedVendorId.
+        if (u.LinkedVendorId == "v-isw-01") candidates.Add("Ima Worker");
+        if (u.LinkedVendorId == "v-sp-01") candidates.Add("Maple Care Inc.");
+        return candidates.Any(c => string.Equals(c, vendorNameOnLine, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void OnFcPicked()
+    {
+        var svcs = AvailableServicesForFc().ToList();
+        if (svcs.Count > 0)
+        {
+            _newSupport = svcs[0].Name;
+            _newRate = svcs[0].Rate;
+        }
+        else
+        {
+            _newSupport = "";
+            _newRate = 45;
+        }
+    }
+
+    private void OnSupportPicked()
+    {
+        var match = AvailableServicesForFc().FirstOrDefault(s => s.Name == _newSupport);
+        if (match != null) _newRate = match.Rate;
+    }
+
+    private bool CanAddShift() =>
+        !string.IsNullOrEmpty(_newFc) && !string.IsNullOrEmpty(_newSupport) && _newEnd > _newStart && _newRate > 0;
+
+    private void AddShift()
+    {
+        if (!CanAddShift()) return;
+        var fc = Fc.FindByCommitId(_newFc);
+        if (fc == null) return;
+
+        var vendorName = UserCtx.IsVendor ? UserCtx.Effective.FullName
+            : (fc.Services.FirstOrDefault()?.Vendor ?? "Unassigned");
+
+        Sched.Add(new Shift
+        {
+            FcId = _newFc,
+            VendorId = UserCtx.Effective.LinkedVendorId ?? "v-isw-01",
+            VendorName = vendorName,
+            ClientOrProjectName = fc.ClientName,
+            SupportType = _newSupport,
+            Date = _newDate,
+            Start = _newStart,
+            End = _newEnd,
+            Rate = _newRate,
+            Status = _newDate < DateTime.Today ? ShiftStatus.Completed : ShiftStatus.Planned
+        });
+
+        Toasts.Show(ToastKind.Success, $"Shift on {_newDate:MMM dd} added.");
+        _newShiftOpen = false;
+        _newFc = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        Sched.OnChange += R;
+        L.OnChange += R;
+        UserCtx.OnChange += R;
+        ActiveCtx.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<Shift> Filtered()
+    {
+        var src = Sched.ForCurrentUser();
+        return _filter switch
+        {
+            "planned" => src.Where(s => s.Status == ShiftStatus.Planned),
+            "completed" => src.Where(s => s.Status == ShiftStatus.Completed),
+            "submitted" => src.Where(s => s.Status == ShiftStatus.Submitted),
+            _ => src
+        };
+    }
+
+    private void Submit(string id)
+    {
+        Sched.Submit(id);
+        Toasts.Show(ToastKind.Success, "Shift submitted");
+    }
+
+    private static string ShiftClass(ShiftStatus s) => s switch
+    {
+        ShiftStatus.Planned => "st-draft",
+        ShiftStatus.Completed => "st-pending",
+        ShiftStatus.Submitted => "st-awaiting",
+        ShiftStatus.Invoiced => "st-approved",
+        ShiftStatus.Cancelled => "st-rejected",
+        _ => "st-draft"
+    };
+
+    public void Dispose()
+    {
+        Sched.OnChange -= R;
+        L.OnChange -= R;
+        UserCtx.OnChange -= R;
+        ActiveCtx.OnChange -= R;
+    }
+}

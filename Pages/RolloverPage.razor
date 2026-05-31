@@ -1,0 +1,189 @@
+@page "/rollover/generate"
+@implements IDisposable
+@inject PermanentFundingService Pf
+@inject FundingCommitmentService Fc
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+@inject UserContextService UserCtx
+
+<PageTitle>SCS Portal · @L.Rollover</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Rollover</div>
+            <h1>@L.T("Budget rollover review", "Revue des reports budgétaires")</h1>
+            <p class="sub">@L.T("Generate draft FCs from eligible permanent funding. Finance approves before activation (FRD §7).", "Génère des engagements brouillons depuis le financement permanent éligible.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat stat-money-main">
+                <div class="lbl">Eligible PFs</div>
+                <div class="v">@Pf.EligibleForRollover().Count()</div>
+                <div class="sub">ready to roll</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Draft FCs</div>
+                <div class="v">@Fc.Rows.Count(r => r.Status == CommitmentStatus.Draft)</div>
+                <div class="sub">in queue</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Selected</div>
+                <div class="v">@_selected.Count</div>
+                <div class="sub">PFs to roll over</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Total budget</div>
+                <div class="v">@Money(Pf.EligibleForRollover().Where(p => _selected.Contains(p.Id)).Sum(p => p.BudgetAmount))</div>
+                <div class="sub">across selection</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="filter-chips">
+            <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;align-self:center">New fiscal year:</span>
+            <input class="modal-input" style="width:120px" @bind="_newFy" />
+        </div>
+        <div class="toolbar-right">
+            <button class="btn" @onclick="SelectAll" disabled="@(!Pf.EligibleForRollover().Any())">Select all eligible</button>
+            <button class="btn" @onclick="() => _selected.Clear()" disabled="@(_selected.Count == 0)">Clear</button>
+            <button class="btn primary" @onclick="GenerateDrafts" disabled="@(_selected.Count == 0)">
+                Generate @_selected.Count draft FC@(_selected.Count == 1 ? "" : "s")
+            </button>
+        </div>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:30px"></th>
+                    <th>Reference</th>
+                    <th>Association</th>
+                    <th>Linked</th>
+                    <th>Program</th>
+                    <th>Fiscal Year</th>
+                    <th class="num">Budget</th>
+                    <th>Eligibility</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pf in Pf.Records)
+                {
+                    var eligible = pf.RolloverEligible && !pf.AlreadyRolledOver && pf.Status == PermanentFundingStatus.Active;
+                    var sel = _selected.Contains(pf.Id);
+                    <tr class="@(eligible ? "" : "row-disabled") @(sel ? "row-selected" : "")">
+                        <td>
+                            <div class="chk @(sel ? "checked" : "")"
+                                 style="@(eligible ? "" : "opacity:.4;pointer-events:none")"
+                                 @onclick="() => Toggle(pf.Id)"></div>
+                        </td>
+                        <td class="mono">@pf.Reference</td>
+                        <td>
+                            <span class="assoc-pill @(pf.Association == AssociationType.Client ? "client" : "project")">
+                                @(pf.Association == AssociationType.Client ? "Client" : "Project")
+                            </span>
+                        </td>
+                        <td>@pf.LinkedEntityName <span class="muted mono">@pf.LinkedEntityId</span></td>
+                        <td>@pf.Program</td>
+                        <td class="mono">@pf.FiscalYear</td>
+                        <td class="num mono">@Money(pf.BudgetAmount)</td>
+                        <td class="muted">
+                            @if (pf.AlreadyRolledOver) { <span>Already rolled over</span> }
+                            else if (!pf.RolloverEligible) { <span>Not eligible</span> }
+                            else if (pf.Status != PermanentFundingStatus.Active) { <span>@pf.Status</span> }
+                            else { <span style="color:var(--success);font-weight:600">Eligible</span> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="db-card" style="margin-top:22px">
+        <div class="db-head"><h3>@L.T("Draft FCs awaiting review", "Engagements brouillons en attente")</h3></div>
+        <div class="data-table-wrap inline">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>FC Ref</th>
+                        <th>Linked</th>
+                        <th>Fiscal Year</th>
+                        <th>Linked PF</th>
+                        <th>Parent FC</th>
+                        <th class="num">Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Fc.Rows.Where(r => r.Status == CommitmentStatus.Draft).OrderByDescending(r => r.FiscalYear).Take(20))
+                    {
+                        <tr>
+                            <td class="mono">@r.CommitId</td>
+                            <td>@r.ClientName</td>
+                            <td class="mono">@r.FiscalYear</td>
+                            <td class="mono muted">@(r.PermanentFundingId ?? "—")</td>
+                            <td class="mono muted">@(r.ParentFundingCommitmentId ?? "—")</td>
+                            <td class="num mono">@Money(r.Total)</td>
+                            <td>
+                                <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => Submit(r.CommitId)">Submit</button>
+                                <button class="btn" style="padding:4px 10px;font-size:11px" @onclick="() => OpenFcs()">Open in FCs</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+@code {
+    private HashSet<string> _selected = new();
+    private string _newFy = "FY" + (DateTime.Now.Year + 1);
+
+    protected override void OnInitialized()
+    {
+        Pf.OnChange += R;
+        Fc.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void Toggle(string id)
+    {
+        if (!_selected.Add(id)) _selected.Remove(id);
+    }
+
+    private void SelectAll()
+    {
+        _selected = Pf.EligibleForRollover().Select(p => p.Id).ToHashSet();
+    }
+
+    private void GenerateDrafts()
+    {
+        var sources = Pf.EligibleForRollover().Where(p => _selected.Contains(p.Id)).ToList();
+        if (sources.Count == 0) return;
+        var ids = Fc.GenerateRolloverDrafts(sources, _newFy);
+        _selected.Clear();
+        Toasts.Show(ToastKind.Success, $"Generated {ids.Count} draft FC{(ids.Count == 1 ? "" : "s")}");
+    }
+
+    private void Submit(string commitId)
+    {
+        Fc.Submit(commitId);
+        Toasts.Show(ToastKind.Success, $"FC {commitId} submitted for Special Approval");
+    }
+
+    private void OpenFcs() => Nav.NavigateTo("/funding-commitments");
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    public void Dispose()
+    {
+        Pf.OnChange -= R;
+        Fc.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

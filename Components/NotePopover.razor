@@ -1,0 +1,36 @@
+@if (Visible)
+{
+    <div class="note-pop" style="left:@(Left)px;top:@(Top)px;" @onclick:stopPropagation="true">
+        <label>Service Note</label>
+        <textarea @bind="_text" @bind:event="oninput" placeholder="Add a note about this service line…"></textarea>
+        <div class="pop-foot">
+            <button class="btn ghost" @onclick="Cancel">Cancel</button>
+            <button class="btn primary" @onclick="Save">Save</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public double Left { get; set; }
+    [Parameter] public double Top { get; set; }
+    [Parameter] public string Initial { get; set; } = "";
+    [Parameter] public EventCallback<string> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _text = "";
+    private string _lastInitial = "";
+
+    protected override void OnParametersSet()
+    {
+        if (Visible && Initial != _lastInitial)
+        {
+            _text = Initial;
+            _lastInitial = Initial;
+        }
+        if (!Visible) _lastInitial = "";
+    }
+
+    private Task Save() => OnSave.InvokeAsync(_text);
+    private Task Cancel() => OnCancel.InvokeAsync();
+}

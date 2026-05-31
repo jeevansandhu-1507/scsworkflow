@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#155670" />
+    <meta name="description" content="SCS Portal — funding commitment, scheduling and invoicing for Service Coordination Support." />
+    <title>SCSPortal · Funding Commitment Rollover</title>
+    <base href="/" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link href="css/app.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app">
+        <div style="padding:24px;font-family:system-ui;color:#3f4954">Loading SCSPortal…</div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        window.scsKeyboard = (function () {
+            let dotnetRef = null;
+            const handler = (e) => {
+                if (!dotnetRef) return;
+                const tag = document.activeElement ? document.activeElement.tagName : '';
+                const inField = ['INPUT', 'SELECT', 'TEXTAREA'].includes(tag);
+
+                // Cmd/Ctrl+K → focus search (works in fields)
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    const s = document.querySelector('.global-search input');
+                    if (s) s.focus();
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    if (inField) { document.activeElement.blur(); return; }
+                    dotnetRef.invokeMethodAsync('JKeyEscape');
+                    return;
+                }
+
+                if (inField) return;
+
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+                    e.preventDefault();
+                    dotnetRef.invokeMethodAsync('JKeySelectAll');
+                    return;
+                }
+
+                switch (e.key.toLowerCase()) {
+                    case 'j':
+                    case 'arrowdown':
+                        e.preventDefault();
+                        dotnetRef.invokeMethodAsync('JKeyMove', 1);
+                        break;
+                    case 'k':
+                    case 'arrowup':
+                        e.preventDefault();
+                        dotnetRef.invokeMethodAsync('JKeyMove', -1);
+                        break;
+                    case ' ':
+                        e.preventDefault();
+                        dotnetRef.invokeMethodAsync('JKeyToggleSelect');
+                        break;
+                    case 'a':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            dotnetRef.invokeMethodAsync('JKeyBulkApprove');
+                        } else {
+                            dotnetRef.invokeMethodAsync('JKeyApprove');
+                        }
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        dotnetRef.invokeMethodAsync('JKeyBulkEdit');
+                        break;
+                    case '/':
+                        e.preventDefault();
+                        const s = document.querySelector('.global-search input');
+                        if (s) s.focus();
+                        break;
+                }
+            };
+
+            // Click-outside handler closes popovers
+            const clickHandler = (e) => {
+                const target = e.target;
+                // Status menu
+                const statusMenu = document.querySelector('.status-menu');
+                if (statusMenu && !statusMenu.contains(target) && !target.closest('.status-pill')) {
+                    document.dispatchEvent(new CustomEvent('scs-close-popovers'));
+                }
+                const overflowMenu = document.querySelector('.overflow-menu');
+                if (overflowMenu && !overflowMenu.contains(target) && !target.closest('.actions-cell button:last-child')) {
+                    document.dispatchEvent(new CustomEvent('scs-close-popovers'));
+                }
+                const notePop = document.querySelector('.note-pop');
+                if (notePop && !notePop.contains(target) && !target.closest('.note-btn')) {
+                    document.dispatchEvent(new CustomEvent('scs-close-popovers'));
+                }
+            };
+
+            return {
+                register(ref) {
+                    dotnetRef = ref;
+                    document.addEventListener('keydown', handler);
+                    document.addEventListener('click', clickHandler);
+                },
+                unregister() {
+                    dotnetRef = null;
+                    document.removeEventListener('keydown', handler);
+                    document.removeEventListener('click', clickHandler);
+                },
+                scrollToCommit(commitId) {
+                    setTimeout(() => {
+                        const el = document.querySelector(`.commit[data-id="${commitId}"]`);
+                        if (el) {
+                            const rect = el.getBoundingClientRect();
+                            if (rect.top < 80 || rect.bottom > window.innerHeight - 100) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }
+                    }, 60);
+                }
+            };
+        })();
+    </script>
+</body>
+</html>

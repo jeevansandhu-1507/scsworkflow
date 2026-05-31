@@ -1,0 +1,506 @@
+@page "/rollover"
+@implements IAsyncDisposable
+@inject FundingCommitmentService Svc
+@inject ToastService Toasts
+@inject IJSRuntime JS
+@inject NavigationManager NavMgr
+
+<PageTitle>SCSPortal · Funding Commitment Rollover</PageTitle>
+
+<section class="page">
+
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">Funding</div>
+            <h1>Funding Commitment Rollover</h1>
+            <p class="sub">Review and approve rollover commitments at speed. Press the keyboard icon in the toolbar to see all shortcuts.</p>
+        </div>
+
+        <div class="stat-strip">
+            <div class="stat stat-money-main @(_sessionPop ? "pop" : "")" @onclick="() => SetFilter(FilterKey.All)" title="Show all commitments">
+                <div class="lbl">Total Committed</div>
+                <div class="v">@MoneyShort(_filteredTotal)</div>
+                <div class="sub">@_filteredCount commit@(_filteredCount == 1 ? "" : "s") · plan @MoneyShort(_filteredPlan)</div>
+            </div>
+            <div class="stat" @onclick="() => SetFilter(FilterKey.Draft)" title="Filter to drafts">
+                <div class="lbl">Queue</div>
+                <div class="v">@_counts[FilterKey.Draft]</div>
+                <div class="sub">in draft</div>
+            </div>
+            <div class="stat" @onclick="() => SetFilter(FilterKey.Pending)" title="Filter to pending">
+                <div class="lbl">Pending</div>
+                <div class="v">@_counts[FilterKey.Pending]</div>
+                <div class="sub">at other stages</div>
+            </div>
+            <div class="stat @(_sessionPop ? "pop" : "")" @onclick="() => SetFilter(FilterKey.Approved)" title="Filter to approved">
+                <div class="lbl">Approved · Session</div>
+                <div class="v">@Svc.ApprovedThisSession</div>
+                <div class="sub">by Jatin today</div>
+            </div>
+        </div>
+    </div>
+
+    @if (!Svc.DraftNoticeDismissed && Svc.Filter == FilterKey.Draft)
+    {
+        <div class="draft-notice">
+            <span class="ic">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 2v6m0 8v6M5.6 5.6l4.2 4.2M14.2 14.2l4.2 4.2M2 12h6M16 12h6M5.6 18.4l4.2-4.2M14.2 9.8l4.2-4.2" />
+                </svg>
+            </span>
+            <div>
+                <strong>Rollover queue:</strong> the system has staged commitments rolled over from the prior funding year.
+                Use keyboard shortcuts for fast review — <strong>J/K</strong> moves through, <strong>A</strong> approves and auto-advances to the next.
+            </div>
+            <button class="x" @onclick="DismissNotice" title="Dismiss" aria-label="Dismiss rollover queue notice">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+        </div>
+    }
+
+    <div class="toolbar">
+        <div class="filter-chips">
+            @foreach (var chip in _chipOrder)
+            {
+                var ck = chip.Key;
+                <button class="chip @(Svc.Filter == chip.Key ? "active" : "")" @onclick="() => SetFilter(ck)">
+                    @chip.Label <span class="count">@_counts[chip.Key]</span>
+                </button>
+            }
+        </div>
+        <div class="toolbar-right">
+            <button class="btn select-all" @onclick="SelectAllVisible">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+                Select all visible
+            </button>
+            <div class="view-toggle">
+                <button class="@(Svc.View == RowView.Detailed ? "active" : "")" @onclick="() => SetView(RowView.Detailed)" title="Detailed">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="6" rx="1" /><rect x="3" y="11" width="18" height="4" /><rect x="3" y="17" width="18" height="4" /></svg>
+                    Detailed
+                </button>
+                <button class="@(Svc.View == RowView.Compact ? "active" : "")" @onclick="() => SetView(RowView.Compact)" title="Compact">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+                    Compact
+                </button>
+                <button class="@(Svc.View == RowView.Ultra ? "active" : "")" @onclick="() => SetView(RowView.Ultra)" title="Ultra-compact">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 15h18" /></svg>
+                    Ultra
+                </button>
+            </div>
+            <button class="btn ghost icon-only" @onclick="ToggleHints" title="Show keyboard shortcuts">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></svg>
+            </button>
+            <button class="btn" @onclick='() => NavMgr.NavigateTo("/rollover/generate")' title="Generate draft FCs from eligible permanent funding">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                Generate from PF
+            </button>
+            <button class="btn primary" @onclick="NewCommit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+                New FC
+            </button>
+        </div>
+    </div>
+
+    @if (_pageItems.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Queue cleared</div>
+            <div class="empty-sub">All @(Svc.Filter == FilterKey.Draft ? "rollover drafts" : "matching items") have been processed.</div>
+        </div>
+    }
+    else
+    {
+        <div class="list">
+            @for (int i = 0; i < _pageItems.Count; i++)
+            {
+                var idx = i;
+                var row = _pageItems[idx];
+                <CommitmentCard @key="row.CommitId"
+                                R="row"
+                                Focused="@(idx == _focusedLocal)"
+                                OnRequestStatusMenu="OpenStatusMenu"
+                                OnRequestOverflowMenu="OpenOverflowMenu"
+                                OnRequestNotePopover="OpenNotePopover"
+                                OnOpenFullView="OpenFullView" />
+            }
+        </div>
+
+        <div class="pagination">
+            <span class="page-info">Showing <strong>@_pageItems.Count</strong> of <strong>@_filteredCount</strong> commitments · <strong>@Svc.ApprovedThisSession</strong> approved this session</span>
+            @if (_totalPages > 1)
+            {
+                <div class="page-btns">
+                    <button disabled="@(Svc.Page == 1)" @onclick="() => GoToPage(Svc.Page - 1)">‹</button>
+                    @foreach (var p in PaginationPages())
+                    {
+                        if (p == -1)
+                        {
+                            <span class="ellipsis">…</span>
+                        }
+                        else
+                        {
+                            var pp = p;
+                            <button class="@(pp == Svc.Page ? "active" : "")" @onclick="() => GoToPage(pp)">@pp</button>
+                        }
+                    }
+                    <button disabled="@(Svc.Page == _totalPages)" @onclick="() => GoToPage(Svc.Page + 1)">›</button>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+<!-- popovers -->
+<StatusMenu Visible="_statusMenuOpen" Left="_menuLeft" Top="_menuTop" OnSelect="OnStatusSelect" />
+<OverflowMenu Visible="_overflowMenuOpen" Left="_menuLeft" Top="_menuTop" ShowSync="_overflowShowSync" OnSelect="OnOverflowSelect" />
+<NotePopover Visible="_noteOpen" Left="_menuLeft" Top="_menuTop" Initial="@_noteInitial" OnSave="OnNoteSave" OnCancel="OnNoteCancel" />
+
+<!-- drawers -->
+<FullDetailView @ref="_fullView" />
+<BulkEditDrawer @ref="_bulkDrawer" />
+<NewFCDialog @ref="_newFcDialog" />
+
+<!-- floating UI -->
+<SelectionBar OnBulkEdit="OpenBulkEdit" />
+<KeyboardHints />
+
+@code {
+    private List<FundingCommitment> _pageItems = new();
+    private int _filteredCount;
+    private int _totalPages = 1;
+    private decimal _filteredTotal;
+    private decimal _filteredPlan;
+    private int _focusedLocal;
+    private IReadOnlyDictionary<FilterKey, int> _counts = new Dictionary<FilterKey, int>
+    {
+        [FilterKey.All] = 0, [FilterKey.Draft] = 0, [FilterKey.Pending] = 0,
+        [FilterKey.Approved] = 0, [FilterKey.Rejected] = 0
+    };
+
+    private bool _sessionPop;
+    private System.Threading.Timer? _popTimer;
+
+    // popover state
+    private bool _statusMenuOpen;
+    private bool _overflowMenuOpen;
+    private bool _overflowShowSync;
+    private bool _noteOpen;
+    private double _menuLeft;
+    private double _menuTop;
+    private string _statusMenuCommitId = "";
+    private string _overflowCommitId = "";
+    private string _noteCommitId = "";
+    private int _noteIdx;
+    private string _noteInitial = "";
+
+    private FullDetailView? _fullView;
+    private BulkEditDrawer? _bulkDrawer;
+    private NewFCDialog? _newFcDialog;
+
+    private DotNetObjectReference<FundingCommitments>? _dotNetRef;
+
+    private readonly (FilterKey Key, string Label)[] _chipOrder = new[]
+    {
+        (FilterKey.Draft,    "In Draft"),
+        (FilterKey.All,      "All"),
+        (FilterKey.Pending,  "Pending"),
+        (FilterKey.Approved, "Approved"),
+        (FilterKey.Rejected, "Not Approved")
+    };
+
+    protected override void OnInitialized()
+    {
+        Svc.OnChange += Refresh;
+        Svc.OnApprovePop += HandleApprovePop;
+        Svc.OnRequestScroll += HandleRequestScroll;
+        Refresh();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("scsKeyboard.register", _dotNetRef);
+        }
+    }
+
+    private void Refresh()
+    {
+        var filtered = Svc.GetFiltered().ToList();
+        _filteredCount = filtered.Count;
+        _filteredTotal = filtered.Sum(r => r.Total);
+        _filteredPlan = filtered.Sum(r => r.TotalPlan);
+        _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)Svc.PageSize));
+        if (Svc.Page > _totalPages) Svc.Page = _totalPages;
+        if (Svc.Page < 1) Svc.Page = 1;
+        _pageItems = filtered.Skip((Svc.Page - 1) * Svc.PageSize).Take(Svc.PageSize).ToList();
+        _focusedLocal = Math.Max(0, Math.Min(_pageItems.Count - 1, Svc.FocusedIndex - (Svc.Page - 1) * Svc.PageSize));
+        _counts = Svc.GetCounts();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleApprovePop()
+    {
+        _sessionPop = true;
+        InvokeAsync(StateHasChanged);
+        _popTimer?.Dispose();
+        _popTimer = new System.Threading.Timer(_ =>
+        {
+            _sessionPop = false;
+            InvokeAsync(StateHasChanged);
+        }, null, 450, System.Threading.Timeout.Infinite);
+    }
+
+    private async void HandleRequestScroll(string commitId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scsKeyboard.scrollToCommit", commitId);
+        }
+        catch { /* ignore */ }
+    }
+
+    private void SetFilter(FilterKey f)
+    {
+        Svc.SetFilter(f);
+        var label = _chipOrder.FirstOrDefault(c => c.Key == f).Label ?? f.ToString();
+        Toasts.Show(ToastKind.Success, $"Filtered to {label}");
+    }
+
+    private void GoToPage(int p)
+    {
+        Svc.GoToPage(p);
+    }
+
+    private void SelectAllVisible()
+    {
+        var nowSelected = Svc.SelectAllVisible();
+        var n = Svc.SelectedCount;
+        Toasts.Show(ToastKind.Success, nowSelected ? $"Selected all {n} visible" : "Selection cleared");
+    }
+
+    private void SetView(RowView v)
+    {
+        Svc.SetView(v);
+    }
+
+    private void ToggleHints()
+    {
+        Svc.HintsVisible = !Svc.HintsVisible;
+        Svc.NotifyChanged();
+    }
+
+    private void DismissNotice()
+    {
+        Svc.DraftNoticeDismissed = true;
+        Svc.NotifyChanged();
+    }
+
+    private void NewCommit()
+    {
+        _newFcDialog?.Open();
+    }
+
+    private IEnumerable<int> PaginationPages()
+    {
+        var cur = Svc.Page;
+        var total = _totalPages;
+        var pages = new List<int>();
+        if (total <= 7)
+        {
+            for (int i = 1; i <= total; i++) pages.Add(i);
+        }
+        else
+        {
+            pages.Add(1);
+            if (cur > 3) pages.Add(-1);
+            for (int i = Math.Max(2, cur - 1); i <= Math.Min(total - 1, cur + 1); i++) pages.Add(i);
+            if (cur < total - 2) pages.Add(-1);
+            pages.Add(total);
+        }
+        return pages;
+    }
+
+    // ---- Popover anchors ----
+
+    private void CloseAllPopovers()
+    {
+        _statusMenuOpen = false;
+        _overflowMenuOpen = false;
+        _noteOpen = false;
+    }
+
+    private void OpenStatusMenu((string commitId, double left, double top, string anchor) args)
+    {
+        CloseAllPopovers();
+        _statusMenuCommitId = args.commitId;
+        _menuLeft = args.left;
+        _menuTop = args.top + 6;
+        _statusMenuOpen = true;
+        StateHasChanged();
+    }
+
+    private void OnStatusSelect(CommitmentStatus s)
+    {
+        Svc.SetStatus(_statusMenuCommitId, s);
+        _statusMenuOpen = false;
+        var info = StatusInfo.For(s);
+        Toasts.Show(ToastKind.Success, $"Status: {info.Label}");
+    }
+
+    private void OpenOverflowMenu((string commitId, double left, double top, string anchor) args)
+    {
+        CloseAllPopovers();
+        _overflowCommitId = args.commitId;
+        var r = Svc.FindByCommitId(args.commitId);
+        _overflowShowSync = r != null && (r.Status == CommitmentStatus.Approved || r.Status == CommitmentStatus.Active);
+        _menuLeft = Math.Max(8, args.left - 170);
+        _menuTop = args.top + 6;
+        _overflowMenuOpen = true;
+        StateHasChanged();
+    }
+
+    private void OnOverflowSelect(string action)
+    {
+        var r = Svc.FindByCommitId(_overflowCommitId);
+        if (r == null) { _overflowMenuOpen = false; return; }
+        switch (action)
+        {
+            case "sync":
+                Toasts.Show(ToastKind.Success, $"Synced {r.CommitId} to Zoho Books");
+                break;
+            case "history":
+                Toasts.Show(ToastKind.Success, $"Opening history for {r.ClientName}");
+                break;
+            case "duplicate":
+                Svc.Duplicate(r.CommitId);
+                Toasts.Show(ToastKind.Success, "Commitment duplicated as draft");
+                break;
+            case "delete":
+                Svc.Delete(r.CommitId);
+                Toasts.Show(ToastKind.Warning, "Commitment deleted");
+                break;
+        }
+        _overflowMenuOpen = false;
+    }
+
+    private void OpenNotePopover((string commitId, int idx, double left, double top, string anchor) args)
+    {
+        CloseAllPopovers();
+        var r = Svc.FindByCommitId(args.commitId);
+        if (r == null || args.idx < 0 || args.idx >= r.Services.Count) return;
+        _noteCommitId = args.commitId;
+        _noteIdx = args.idx;
+        _noteInitial = r.Services[args.idx].Note;
+        _menuLeft = Math.Max(16, args.left - 310);
+        _menuTop = args.top + 6;
+        _noteOpen = true;
+        StateHasChanged();
+    }
+
+    private void OnNoteSave(string text)
+    {
+        Svc.SetServiceNote(_noteCommitId, _noteIdx, text);
+        _noteOpen = false;
+        Toasts.Show(ToastKind.Success, "Note saved");
+    }
+
+    private void OnNoteCancel()
+    {
+        _noteOpen = false;
+    }
+
+    private void OpenFullView((string commitId, string tab) args)
+    {
+        _fullView?.Open(args.commitId, args.tab);
+    }
+
+    private void OpenBulkEdit()
+    {
+        _bulkDrawer?.Open();
+    }
+
+    // ---- Keyboard shortcuts (called from JS) ----
+
+    [JSInvokable]
+    public void JKeyMove(int delta)
+    {
+        Svc.MoveFocus(delta);
+    }
+
+    [JSInvokable]
+    public void JKeyToggleSelect()
+    {
+        Svc.ToggleSelectFocused();
+    }
+
+    [JSInvokable]
+    public void JKeyApprove()
+    {
+        var filtered = Svc.GetFiltered().ToList();
+        var row = filtered.ElementAtOrDefault(Svc.FocusedIndex);
+        if (row == null) return;
+        if (row.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Rejected)
+        {
+            var info = StatusInfo.For(row.Status);
+            Toasts.Show(ToastKind.Warning, $"Cannot approve from \"{info.Label}\" status");
+            return;
+        }
+        Svc.Approve(row.CommitId);
+        Toasts.Show(ToastKind.Success, $"{row.ClientName} approved");
+    }
+
+    [JSInvokable]
+    public void JKeyBulkApprove()
+    {
+        var n = Svc.BulkApprovableSelectedCount;
+        if (n == 0)
+        {
+            Toasts.Show(ToastKind.Warning, "No selected commitments to approve");
+            return;
+        }
+        Svc.BulkApproveSelected();
+        Toasts.Show(ToastKind.Success, $"{n} commitment{(n == 1 ? "" : "s")} approved");
+    }
+
+    [JSInvokable]
+    public void JKeyBulkEdit()
+    {
+        if (Svc.SelectedCount == 0)
+        {
+            Toasts.Show(ToastKind.Warning, "Select one or more commitments first");
+            return;
+        }
+        _bulkDrawer?.Open();
+    }
+
+    [JSInvokable]
+    public void JKeySelectAll()
+    {
+        SelectAllVisible();
+    }
+
+    [JSInvokable]
+    public void JKeyEscape()
+    {
+        if (_fullView?.IsOpen == true) { _fullView.Close(); return; }
+        if (_bulkDrawer?.IsOpen == true) { _bulkDrawer.Close(); return; }
+        if (_statusMenuOpen || _overflowMenuOpen || _noteOpen) { CloseAllPopovers(); StateHasChanged(); return; }
+        if (Svc.SelectedCount > 0) { Svc.ClearSelection(); return; }
+    }
+
+    private static string MoneyShort(decimal n) => "$" + n.ToString("N0");
+
+    public async ValueTask DisposeAsync()
+    {
+        Svc.OnChange -= Refresh;
+        Svc.OnApprovePop -= HandleApprovePop;
+        Svc.OnRequestScroll -= HandleRequestScroll;
+        _popTimer?.Dispose();
+        try { await JS.InvokeVoidAsync("scsKeyboard.unregister"); } catch { }
+        _dotNetRef?.Dispose();
+    }
+}

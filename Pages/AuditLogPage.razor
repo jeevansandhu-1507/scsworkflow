@@ -1,0 +1,133 @@
+@page "/audit"
+@implements IDisposable
+@inject AuditService Audit
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.AuditLog</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.AuditLog</div>
+            <h1>@L.T("Audit & compliance log", "Journal d'audit")</h1>
+            <p class="sub">@L.T("Immutable history of all critical actions (FRD §14). Includes impersonation context.", "Historique immuable des actions critiques.")</p>
+        </div>
+        <div class="stat-strip">
+            <div class="stat">
+                <div class="lbl">Entries</div>
+                <div class="v">@Audit.Entries.Count</div>
+                <div class="sub">total logged</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Last 24h</div>
+                <div class="v">@Audit.Entries.Count(e => e.Timestamp > DateTime.Now.AddDays(-1))</div>
+                <div class="sub">recent</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Actions</div>
+                <div class="v">@Audit.Entries.Select(e => e.Action).Distinct().Count()</div>
+                <div class="sub">distinct types</div>
+            </div>
+            <div class="stat">
+                <div class="lbl">Actors</div>
+                <div class="v">@Audit.Entries.Select(e => e.Actor).Distinct().Count()</div>
+                <div class="sub">distinct users</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <input class="modal-input" style="min-width:280px" placeholder="Search action, entity, actor, detail…" @bind="_q" @bind:event="oninput" />
+        <div class="toolbar-right">
+            <select class="modal-input" @bind="_actionFilter">
+                <option value="">All actions</option>
+                @foreach (var a in Audit.Entries.Select(e => e.Action).Distinct().OrderBy(a => a))
+                {
+                    <option value="@a">@a</option>
+                }
+            </select>
+            <select class="modal-input" @bind="_entityFilter">
+                <option value="">All entity types</option>
+                @foreach (var e in Audit.Entries.Select(x => x.EntityType).Distinct().OrderBy(a => a))
+                {
+                    <option value="@e">@e</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>When</th><th>Actor</th><th>Role</th><th>Action</th><th>Entity</th><th>Before → After</th><th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Filtered().Take(200))
+                {
+                    <tr>
+                        <td class="mono">@a.Timestamp.ToString("MMM dd · HH:mm:ss")</td>
+                        <td>
+                            @a.Actor
+                            @if (!string.IsNullOrEmpty(a.ImpersonatedBy))
+                            {
+                                <span class="muted"> · via @a.ImpersonatedBy</span>
+                            }
+                        </td>
+                        <td class="muted">@RoleInfo.Label(a.ActorRole)</td>
+                        <td class="mono">@a.Action</td>
+                        <td>
+                            <div class="mono muted" style="font-size:11px">@a.EntityType</div>
+                            <div>@a.EntityLabel</div>
+                        </td>
+                        <td class="mono muted">
+                            @if (!string.IsNullOrEmpty(a.Before) || !string.IsNullOrEmpty(a.After))
+                            {
+                                <span>@(string.IsNullOrEmpty(a.Before) ? "—" : a.Before) → @(string.IsNullOrEmpty(a.After) ? "—" : a.After)</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td class="muted">@a.Detail</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private string _q = "";
+    private string _actionFilter = "";
+    private string _entityFilter = "";
+
+    protected override void OnInitialized()
+    {
+        Audit.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<AuditEntry> Filtered()
+    {
+        var q = (_q ?? "").Trim().ToLowerInvariant();
+        return Audit.Entries.Where(e =>
+        {
+            if (!string.IsNullOrEmpty(_actionFilter) && e.Action != _actionFilter) return false;
+            if (!string.IsNullOrEmpty(_entityFilter) && e.EntityType != _entityFilter) return false;
+            if (string.IsNullOrEmpty(q)) return true;
+            var hay = (e.Action + " " + e.EntityType + " " + e.EntityLabel + " " + e.Actor + " " + e.Detail).ToLowerInvariant();
+            return hay.Contains(q);
+        });
+    }
+
+    public void Dispose()
+    {
+        Audit.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

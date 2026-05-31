@@ -1,0 +1,78 @@
+@implements IDisposable
+@inject AuditService Audit
+
+<div class="ent-history">
+    @{
+        var entries = Audit.Entries
+            .Where(e => string.Equals(e.EntityType, EntityType, StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(e.EntityId, EntityId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    @if (entries.Count == 0)
+    {
+        <div class="empty-state" style="margin:0">
+            <div class="empty-title">No history yet</div>
+            <div class="empty-sub">Changes to this record will appear here.</div>
+        </div>
+    }
+    else
+    {
+        <div class="ent-history-stats">
+            <span><strong>@entries.Count</strong> entry@(entries.Count == 1 ? "" : "ies")</span>
+            <span>· first: @entries.Min(e => e.Timestamp).ToString("MMM dd, yyyy HH:mm")</span>
+            <span>· latest: @entries.Max(e => e.Timestamp).ToString("MMM dd, yyyy HH:mm")</span>
+        </div>
+        <ol class="ent-history-list">
+            @foreach (var e in entries)
+            {
+                <li class="ent-history-item">
+                    <div class="ent-history-dot"></div>
+                    <div class="ent-history-body">
+                        <div class="ent-history-head">
+                            <span class="ent-history-action">@e.Action</span>
+                            <span class="ent-history-actor">by @e.Actor <span class="muted">(@RoleInfo.Label(e.ActorRole))</span></span>
+                            <span class="ent-history-when mono">@e.Timestamp.ToString("MMM dd, yyyy HH:mm:ss")</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(e.Before) || !string.IsNullOrEmpty(e.After))
+                        {
+                            <div class="ent-history-diff mono">
+                                <span class="muted">@(string.IsNullOrEmpty(e.Before) ? "—" : e.Before)</span>
+                                <span class="arrow">→</span>
+                                <span><strong>@(string.IsNullOrEmpty(e.After) ? "—" : e.After)</strong></span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(e.Detail))
+                        {
+                            <div class="ent-history-detail">@e.Detail</div>
+                        }
+                        @if (!string.IsNullOrEmpty(e.ImpersonatedBy))
+                        {
+                            <div class="ent-history-impersonation">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                Impersonated by @e.ImpersonatedBy
+                            </div>
+                        }
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string EntityType { get; set; } = "";
+    [Parameter, EditorRequired] public string EntityId { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        Audit.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Audit.OnChange -= R;
+    }
+}

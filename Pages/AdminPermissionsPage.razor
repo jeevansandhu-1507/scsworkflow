@@ -1,0 +1,135 @@
+@page "/admin/permissions"
+@implements IDisposable
+@inject PermissionsService Perms
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · Role Permissions</PageTitle>
+
+<section class="page wizard-page-wide">
+    @if (!UserCtx.IsAdmin)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Admin only</div>
+            <div class="empty-sub">Role permission management is reserved for the SCS Admin role.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/")'>Back to dashboard</button>
+        </div>
+    }
+    else
+    {
+        var groups = PermissionsService.Features.GroupBy(f => f.Group).ToList();
+        var roles = new[] { AppRole.Admin, AppRole.Finance, AppRole.CaseManager, AppRole.SpecialApprover, AppRole.Client, AppRole.VendorIsw, AppRole.VendorSp };
+
+        <div class="fcl-head">
+            <h1 class="fcl-title">🔐 Role Permissions</h1>
+        </div>
+
+        <div class="db-card">
+            <div class="db-head">
+                <h3>Dynamic role-based access matrix</h3>
+                <span class="muted" style="font-size:11.5px">@PermissionsService.Features.Length features · @roles.Length roles</span>
+            </div>
+            <div style="padding:12px 18px;background:#dceaf5;border-bottom:1px solid #aed0eb;font-size:12.5px;color:#1b4a7a">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+                Toggle a cell to allow or deny that feature for the role. Changes apply immediately to the menu visibility hints below.
+            </div>
+
+            <div class="perm-table-wrap">
+                <table class="perm-table">
+                    <thead>
+                        <tr>
+                            <th class="perm-feature">Feature</th>
+                            @foreach (var r in roles)
+                            {
+                                <th class="perm-role"><div>@RoleInfo.Label(r)</div><div class="muted">@RoleInfo.Code(r)</div></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in groups)
+                        {
+                            <tr class="perm-group-row">
+                                <td colspan="@(roles.Length + 1)">@g.Key</td>
+                            </tr>
+                            @foreach (var f in g)
+                            {
+                                var fk = f.Key;
+                                <tr>
+                                    <td class="perm-feature-name">
+                                        <strong>@f.Label</strong>
+                                        <div class="muted mono" style="font-size:10.5px">@f.Key</div>
+                                    </td>
+                                    @foreach (var r in roles)
+                                    {
+                                        var role = r;
+                                        var allowed = Perms.Allows(role, fk);
+                                        <td class="perm-cell @(allowed ? "on" : "off")"
+                                            @onclick="() => Toggle(role, fk)"
+                                            title="@($"{RoleInfo.Label(role)} → {(allowed ? "ALLOW" : "DENY")} · click to toggle")">
+                                            @if (allowed)
+                                            {
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5" /></svg>
+                                            }
+                                            else
+                                            {
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="db-card" style="margin-top:18px">
+            <div class="db-head"><h3>Sidebar preview</h3></div>
+            <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+                @foreach (var r in roles)
+                {
+                    var role = r;
+                    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:10px 12px">
+                        <div style="font:600 12.5px 'Geist',sans-serif;color:var(--brand-700);margin-bottom:6px">@RoleInfo.Label(role)</div>
+                        <ul style="margin:0;padding-left:14px;font-size:11.5px;color:var(--ink-2);line-height:1.7">
+                            @foreach (var f in PermissionsService.Features.Where(f => Perms.Allows(role, f.Key)))
+                            {
+                                <li>@f.Label</li>
+                            }
+                            @if (!PermissionsService.Features.Any(f => Perms.Allows(role, f.Key)))
+                            {
+                                <li class="muted" style="font-style:italic;list-style:none;margin-left:-14px">No features assigned</li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Perms.OnChange += R;
+        UserCtx.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void Toggle(AppRole role, string feature)
+    {
+        Perms.Toggle(role, feature);
+        var f = PermissionsService.Features.FirstOrDefault(x => x.Key == feature);
+        var allowed = Perms.Allows(role, feature);
+        Toasts.Show(ToastKind.Success, $"{RoleInfo.Label(role)} · {f.Label}: {(allowed ? "allowed" : "denied")}");
+    }
+
+    public void Dispose()
+    {
+        Perms.OnChange -= R;
+        UserCtx.OnChange -= R;
+    }
+}

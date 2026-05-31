@@ -1,0 +1,17 @@
+@inject NavigationManager Nav
+
+<div class="sub-item @(IsActive() ? "active" : "")" @onclick="Go">@Label</div>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    private bool IsActive()
+    {
+        var uri = new Uri(Nav.Uri);
+        var path = uri.AbsolutePath.Trim('/');
+        return path == Href;
+    }
+
+    private void Go() => Nav.NavigateTo("/" + Href);
+}

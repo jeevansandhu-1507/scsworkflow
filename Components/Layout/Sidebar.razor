@@ -1,0 +1,135 @@
+@implements IDisposable
+@inject ToastService Toasts
+@inject UserContextService UserCtx
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<aside class="sidebar" role="navigation" aria-label="Primary navigation">
+    <button class="sidebar-user" @onclick="OpenProfile"
+            aria-label="@($"Logged in as {UserCtx.Effective.FullName}, role {RoleInfo.Label(UserCtx.Effective.Role)}. Open profile.")">
+        <div class="av" aria-hidden="true">@Initials(UserCtx.Effective.FullName)</div>
+        <div class="meta">
+            <div class="nm">@UserCtx.Effective.FullName</div>
+            <div class="role">@RoleInfo.Label(UserCtx.Effective.Role) <span class="h" aria-hidden="true">@RoleInfo.Code(UserCtx.Effective.Role)</span></div>
+        </div>
+    </button>
+
+    @if (UserCtx.Impersonating != null)
+    {
+        <div class="impersonation-banner">
+            Impersonating @UserCtx.Effective.FullName
+            <button @onclick="StopImpersonating">Stop</button>
+        </div>
+    }
+
+    <nav>
+        @switch (UserCtx.Effective.Role)
+        {
+            case AppRole.Admin:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="admin" Label="@L.T("Users & Roles", "Utilisateurs et rôles")" Dot="dot-profile" />
+                <NavSection Href="admin/permissions" Label="@L.T("Role Permissions", "Permissions des rôles")" Dot="dot-profile" />
+                <NavSection Href="admin/invitations" Label="@L.T("Clients & Vendors", "Clients et fournisseurs")" Dot="dot-funding" />
+                <NavSection Href="audit" Label="@L.AuditLog" Dot="dot-docs" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.Finance:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="profile" Label="@L.T("Profile", "Profil")" Dot="dot-profile" />
+                <NavSection Href="funding-commitments" Label="@L.FundingCommitments" Dot="dot-funding" />
+                <NavSection Href="permanent-funding" Label="@L.PermanentFunding" Dot="dot-funding" />
+                <NavSection Href="rollover" Label="@L.Rollover" Dot="dot-funding" />
+                <NavSection Href="financial-pressure" Label="@L.FinancialPressure" Dot="dot-funding" />
+                <NavSection Href="approvals" Label="@L.T("Approvals", "Approbations")" Dot="dot-billing" />
+                <NavSection Href="vendor-approval" Label="@L.T("Vendor Approval", "Approbation fournisseurs")" Dot="dot-billing" />
+                <NavSection Href="audit" Label="@L.AuditLog" Dot="dot-docs" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.CaseManager:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="profile" Label="@L.T("Profile", "Profil")" Dot="dot-profile" />
+                <NavSection Href="funding-commitments" Label="@L.FundingCommitments" Dot="dot-funding" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.SpecialApprover:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="funding-commitments" Label="@L.FundingCommitments" Dot="dot-funding" />
+                <NavSection Href="approvals" Label="@L.T("Approvals", "Approbations")" Dot="dot-billing" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.VendorIsw:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="my-clients" Label="@L.T("My Clients", "Mes clients")" Dot="dot-profile" />
+                <NavSection Href="scheduling" Label="@L.T("My Schedule", "Mon horaire")" Dot="dot-shifts" />
+                <NavSection Href="invoices" Label="@L.T("My Invoices", "Mes factures")" Dot="dot-billing" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.VendorSp:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="my-clients" Label="@L.T("My Clients", "Mes clients")" Dot="dot-profile" />
+                <NavSection Href="financial-pressure" Label="@L.FinancialPressure" Dot="dot-funding" />
+                <NavSection Href="invoices" Label="@L.T("My Invoices", "Mes factures")" Dot="dot-billing" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+
+            case AppRole.Client:
+                <NavSection Href="" Label="@L.Dashboard" Dot="dot-home" />
+                <NavSection Href="funding-commitments" Label="@L.T("My Funding", "Mon financement")" Dot="dot-funding" />
+                <NavSection Href="my-vendors" Label="@L.T("My Vendors", "Mes fournisseurs")" Dot="dot-profile" />
+                <NavSection Href="scheduling" Label="@L.T("My Schedule", "Mon horaire")" Dot="dot-shifts" />
+                <NavSection Href="invoices" Label="@L.T("My Invoices", "Mes factures")" Dot="dot-billing" />
+                <NavSection Href="notifications" Label="@L.Notifications" Dot="dot-docs" />
+                break;
+        }
+    </nav>
+
+    <div class="sidebar-foot">
+        <div class="scs-logo">
+            <div class="logo-mark">
+                <span class="o o1"></span><span class="o o2"></span><span class="o o3"></span><span class="o o4"></span>
+            </div>
+            <div class="txt">
+                <span class="b">SCS</span>
+                <span class="s">Service Coordination<br />Support · Soutien</span>
+            </div>
+        </div>
+    </div>
+</aside>
+
+@code {
+    protected override void OnInitialized()
+    {
+        UserCtx.OnChange += Refresh;
+        L.OnChange += Refresh;
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    private void OpenProfile() =>
+        Toasts.Show(ToastKind.Success, "Opening user profile…");
+
+    private void StopImpersonating()
+    {
+        UserCtx.StopImpersonating();
+        Toasts.Show(ToastKind.Success, "Stopped impersonating");
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "";
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpper();
+    }
+
+    public void Dispose()
+    {
+        UserCtx.OnChange -= Refresh;
+        L.OnChange -= Refresh;
+    }
+}

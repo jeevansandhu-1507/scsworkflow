@@ -1,0 +1,333 @@
+@page "/approvals"
+@implements IDisposable
+@inject FundingCommitmentService Fc
+@inject InvoicingService Inv
+@inject FinancialPressureService Fp
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · Approvals</PageTitle>
+
+<section class="page wizard-page-wide">
+    @if (!UserCtx.IsFinance && !UserCtx.IsAdmin && !UserCtx.IsCaseManager && !UserCtx.IsSpecialApprover)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Internal staff only</div>
+            <div class="empty-sub">Switch to a Finance, Admin, Case Manager, or Special Approver role to view approvals.</div>
+        </div>
+    }
+    else
+    {
+        var pendingFcs = PendingFcs().ToList();
+        var pendingFps = PendingFps().ToList();
+        var pendingInvs = PendingInvoices().ToList();
+
+        <div class="page-header">
+            <div class="page-title">
+                <div class="eyebrow">Approvals</div>
+                <h1>@L.T("Approval queue", "File d'approbation")</h1>
+                <p class="sub">@L.T("Items waiting for your action across funding commitments, financial pressures, and invoices.", "Éléments en attente d'action.")</p>
+            </div>
+            <div class="stat-strip">
+                <div class="stat stat-money-main" @onclick='() => _tab = "fc"'>
+                    <div class="lbl">FCs</div>
+                    <div class="v">@pendingFcs.Count</div>
+                    <div class="sub">awaiting your review</div>
+                </div>
+                <div class="stat" @onclick='() => _tab = "fp"'>
+                    <div class="lbl">Financial Pressures</div>
+                    <div class="v">@pendingFps.Count</div>
+                    <div class="sub">awaiting your review</div>
+                </div>
+                <div class="stat" @onclick='() => _tab = "inv"'>
+                    <div class="lbl">Invoices</div>
+                    <div class="v">@pendingInvs.Count</div>
+                    <div class="sub">awaiting your review</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Total open</div>
+                    <div class="v">@(pendingFcs.Count + pendingFps.Count + pendingInvs.Count)</div>
+                    <div class="sub">items in your queue</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pf-tabbar">
+            <div class="pf-tabs">
+                <button class="pf-tab @(_tab == "fc" ? "active" : "")" @onclick='() => _tab = "fc"'>
+                    FUNDING COMMITMENTS <span class="pf-tab-ct">@pendingFcs.Count</span>
+                </button>
+                <button class="pf-tab @(_tab == "fp" ? "active" : "")" @onclick='() => _tab = "fp"'>
+                    FINANCIAL PRESSURE <span class="pf-tab-ct">@pendingFps.Count</span>
+                </button>
+                <button class="pf-tab @(_tab == "inv" ? "active" : "")" @onclick='() => _tab = "inv"'>
+                    INVOICES <span class="pf-tab-ct">@pendingInvs.Count</span>
+                </button>
+            </div>
+        </div>
+
+        @if (_tab == "fc")
+        {
+            <div class="db-card">
+                <div class="db-head">
+                    <h3>@L.T("Funding Commitments awaiting approval", "Engagements en attente")</h3>
+                    @if (pendingFcs.Any() && (UserCtx.IsFinance || UserCtx.IsAdmin))
+                    {
+                        <button class="btn" @onclick="() => BulkApproveFcs(pendingFcs)">Approve all @pendingFcs.Count</button>
+                    }
+                </div>
+                <div class="data-table-wrap inline">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>FC Ref</th><th>Client/Project</th><th>Stage</th>
+                                <th class="num">Plan</th><th class="num">Committed</th>
+                                <th>Submitted by</th><th>Submitted</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in pendingFcs)
+                            {
+                                var st = StatusInfo.For(r.Status);
+                                <tr>
+                                    <td class="mono">@r.CommitId</td>
+                                    <td>@r.ClientName <span class="assoc-pill @(r.Association == AssociationType.Client ? "client" : "project")">@(r.Association == AssociationType.Client ? "C" : "P")</span></td>
+                                    <td><span class="status-pill @st.CssClass">@st.Label</span></td>
+                                    <td class="num mono">@Money(r.TotalPlan)</td>
+                                    <td class="num mono">@Money(r.Total)</td>
+                                    <td class="muted">@(r.SubmittedBy ?? r.Creator)</td>
+                                    <td class="mono muted">@(r.SubmittedAt?.ToString("MMM dd · HH:mm") ?? "—")</td>
+                                    <td>
+                                        @if (r.Status == CommitmentStatus.Special && UserCtx.IsSpecialApprover)
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => SpecialApprove(r.CommitId)">Clear → Finance</button>
+                                        }
+                                        @if (r.Status == CommitmentStatus.Finance && (UserCtx.IsFinance || UserCtx.IsAdmin))
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => FinanceApproveFc(r.CommitId)">Approve</button>
+                                        }
+                                        <button class="btn" style="padding:4px 10px;font-size:11px;color:var(--danger)" @onclick="() => RejectFc(r.CommitId)">Reject</button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!pendingFcs.Any())
+                            {
+                                <tr><td colspan="8" class="muted" style="text-align:center;padding:30px">Nothing in your FC queue right now.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else if (_tab == "fp")
+        {
+            <div class="db-card">
+                <div class="db-head"><h3>@L.T("Financial Pressure requests", "Demandes de pression")</h3></div>
+                <div class="data-table-wrap inline">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ref</th><th>Vendor</th><th>Linked</th><th>Support</th>
+                                <th class="num">Amount</th><th>Priority</th><th>Stage</th><th>Created</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in pendingFps)
+                            {
+                                <tr>
+                                    <td class="mono">@r.Id</td>
+                                    <td>@r.VendorName</td>
+                                    <td>@r.LinkedEntityName</td>
+                                    <td class="muted">@r.SupportType</td>
+                                    <td class="num mono">@Money(r.RequestedAmount)</td>
+                                    <td><span class="assoc-pill @(r.Priority is FpPriority.High or FpPriority.Urgent ? "project" : "client")">@r.Priority</span></td>
+                                    <td><span class="status-pill @FpClass(r.Status)">@r.Status</span></td>
+                                    <td class="mono muted">@r.Created.ToString("MMM dd")</td>
+                                    <td>
+                                        @if (UserCtx.IsCaseManager && r.Status == FpStatus.Submitted)
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => CmClearFp(r.Id)">Clear → Finance</button>
+                                        }
+                                        @if ((UserCtx.IsFinance || UserCtx.IsAdmin) && r.Status == FpStatus.FinanceReview)
+                                        {
+                                            <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => ApproveFp(r.Id)">Approve</button>
+                                        }
+                                        <button class="btn" style="padding:4px 10px;font-size:11px;color:var(--danger)" @onclick="() => RejectFp(r.Id)">Reject</button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!pendingFps.Any())
+                            {
+                                <tr><td colspan="9" class="muted" style="text-align:center;padding:30px">Nothing in your Financial Pressure queue right now.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else if (_tab == "inv")
+        {
+            <div class="db-card">
+                <div class="db-head">
+                    <h3>@L.T("Invoices awaiting approval", "Factures en attente")</h3>
+                    @if (pendingInvs.Any() && (UserCtx.IsFinance || UserCtx.IsAdmin))
+                    {
+                        <button class="btn" @onclick="() => BulkApproveInvoices(pendingInvs)">Approve all @pendingInvs.Count</button>
+                    }
+                </div>
+                <div class="data-table-wrap inline">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Number</th><th>Vendor</th><th>Linked</th><th>Date</th>
+                                <th>Status</th><th class="num">Total</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var i in pendingInvs)
+                            {
+                                <tr>
+                                    <td class="mono">@i.Number</td>
+                                    <td>@i.VendorName <span class="assoc-pill @(i.VendorType == VendorType.Isw ? "client" : "project")">@(i.VendorType == VendorType.Isw ? "ISW" : "SP")</span></td>
+                                    <td>@i.LinkedEntityName</td>
+                                    <td class="mono">@i.Date.ToString("MMM dd")</td>
+                                    <td><span class="status-pill @InvClass(i.Status)">@i.Status</span></td>
+                                    <td class="num mono">@Money(i.Total)</td>
+                                    <td>
+                                        <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => ApproveInvoice(i.Id)">Approve</button>
+                                        <button class="btn" style="padding:4px 10px;font-size:11px;color:var(--danger)" @onclick="() => RejectInvoice(i.Id)">Reject</button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!pendingInvs.Any())
+                            {
+                                <tr><td colspan="7" class="muted" style="text-align:center;padding:30px">Nothing in your Invoice queue right now.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private string _tab = "fc";
+
+    protected override void OnInitialized()
+    {
+        Fc.OnChange += R;
+        Fp.OnChange += R;
+        Inv.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FundingCommitment> PendingFcs()
+    {
+        if (UserCtx.IsSpecialApprover) return Fc.Rows.Where(r => r.Status == CommitmentStatus.Special);
+        if (UserCtx.IsFinance || UserCtx.IsAdmin)
+            return Fc.Rows.Where(r => r.Status is CommitmentStatus.Finance or CommitmentStatus.Special);
+        return Array.Empty<FundingCommitment>();
+    }
+
+    private IEnumerable<FinancialPressureRequest> PendingFps()
+    {
+        if (UserCtx.IsCaseManager) return Fp.Requests.Where(r => r.Status == FpStatus.Submitted);
+        if (UserCtx.IsFinance || UserCtx.IsAdmin)
+            return Fp.Requests.Where(r => r.Status is FpStatus.FinanceReview or FpStatus.CmReview or FpStatus.Submitted);
+        return Array.Empty<FinancialPressureRequest>();
+    }
+
+    private IEnumerable<Invoice> PendingInvoices()
+    {
+        if (UserCtx.IsFinance || UserCtx.IsAdmin)
+            return Inv.Invoices.Where(i => i.Status == InvoiceStatus.Submitted);
+        return Array.Empty<Invoice>();
+    }
+
+    private void SpecialApprove(string id) { Fc.SpecialApprove(id); Toasts.Show(ToastKind.Success, $"FC {id} cleared for Finance"); }
+    private void FinanceApproveFc(string id)
+    {
+        var err = Fc.FinanceApprove(id);
+        if (err != null)
+        {
+            Toasts.Show(ToastKind.Danger, err);
+        }
+        else
+        {
+            Toasts.Show(ToastKind.Success, $"FC {id} approved successfully");
+        }
+    }
+    private void RejectFc(string id) { Fc.Reject(id); Toasts.Show(ToastKind.Warning, $"FC {id} rejected"); }
+
+    private void CmClearFp(string id) { Fp.CmReview(id, "Operationally justified."); Toasts.Show(ToastKind.Success, "Cleared for Finance"); }
+    private void ApproveFp(string id) { Fp.FinanceApprove(id, "Approved."); Toasts.Show(ToastKind.Success, "FP approved"); }
+    private void RejectFp(string id) { Fp.Reject(id, "Insufficient justification."); Toasts.Show(ToastKind.Warning, "FP rejected"); }
+
+    private void ApproveInvoice(string id) { Inv.Approve(id); Toasts.Show(ToastKind.Success, "Invoice approved"); }
+    private void RejectInvoice(string id) { Inv.Reject(id, "Returned for revision."); Toasts.Show(ToastKind.Warning, "Invoice rejected"); }
+
+    private void BulkApproveFcs(IEnumerable<FundingCommitment> rows)
+    {
+        var n = 0;
+        var errors = new List<string>();
+        foreach (var r in rows.Where(x => x.Status is CommitmentStatus.Finance or CommitmentStatus.Special).ToList())
+        {
+            if (r.Status == CommitmentStatus.Special) Fc.SpecialApprove(r.CommitId);
+            var err = Fc.FinanceApprove(r.CommitId);
+            if (err != null)
+            {
+                errors.Add($"FC {r.CommitId}: {err}");
+            }
+            else
+            {
+                n++;
+            }
+        }
+        if (n > 0) Toasts.Show(ToastKind.Success, $"Approved {n} FC{(n == 1 ? "" : "s")}");
+        foreach (var err in errors) Toasts.Show(ToastKind.Danger, err);
+    }
+
+    private void BulkApproveInvoices(IEnumerable<Invoice> rows)
+    {
+        var n = 0;
+        foreach (var i in rows.ToList()) { Inv.Approve(i.Id); n++; }
+        Toasts.Show(ToastKind.Success, $"Approved {n} invoice{(n == 1 ? "" : "s")}");
+    }
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string FpClass(FpStatus s) => s switch
+    {
+        FpStatus.Submitted => "st-pending",
+        FpStatus.CmReview => "st-awaiting",
+        FpStatus.FinanceReview => "st-finance",
+        FpStatus.Approved => "st-approved",
+        FpStatus.Rejected => "st-rejected",
+        _ => "st-draft"
+    };
+
+    private static string InvClass(InvoiceStatus s) => s switch
+    {
+        InvoiceStatus.Draft => "st-draft",
+        InvoiceStatus.Submitted => "st-pending",
+        InvoiceStatus.Approved => "st-approved",
+        InvoiceStatus.Paid => "st-active",
+        InvoiceStatus.Rejected => "st-rejected",
+        _ => "st-draft"
+    };
+
+    public void Dispose()
+    {
+        Fc.OnChange -= R;
+        Fp.OnChange -= R;
+        Inv.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

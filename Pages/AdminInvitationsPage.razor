@@ -1,0 +1,300 @@
+@page "/admin/invitations"
+@implements IDisposable
+@inject ClientDirectoryService Clients
+@inject VendorService Vendors
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · Clients & Vendor Invitations</PageTitle>
+
+<section class="page">
+    @if (!UserCtx.IsAdmin)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Admin only</div>
+            <div class="empty-sub">Portal invite management is reserved for the SCS Admin role.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/")'>Back to dashboard</button>
+        </div>
+    }
+    else
+    {
+        var clients = Clients.Clients.ToList();
+        var vendors = Vendors.Vendors.ToList();
+
+        <div class="fcl-head">
+            <h1 class="fcl-title">✉️ Clients & Vendor Invitations</h1>
+        </div>
+
+        <div class="page-header" style="margin-bottom:14px">
+            <div class="stat-strip" style="grid-template-columns:repeat(4,minmax(120px,1fr))">
+                <div class="stat stat-money-main" @onclick='() => _tab = "clients"'>
+                    <div class="lbl">Clients</div>
+                    <div class="v">@clients.Count</div>
+                    <div class="sub">@clients.Count(c => c.InviteStatus == InviteStatus.Accepted) accepted · @clients.Count(c => c.InviteStatus == InviteStatus.NotInvited) not invited</div>
+                </div>
+                <div class="stat" @onclick='() => _tab = "vendors"'>
+                    <div class="lbl">Vendors</div>
+                    <div class="v">@vendors.Count</div>
+                    <div class="sub">@vendors.Count(v => v.InviteStatus == InviteStatus.Accepted) accepted · @vendors.Count(v => v.InviteStatus == InviteStatus.NotInvited) not invited</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Awaiting accept</div>
+                    <div class="v">@(clients.Count(c => c.InviteStatus == InviteStatus.Invited) + vendors.Count(v => v.InviteStatus == InviteStatus.Invited))</div>
+                    <div class="sub">invites sent</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Expired</div>
+                    <div class="v">@(clients.Count(c => c.InviteStatus == InviteStatus.Expired) + vendors.Count(v => v.InviteStatus == InviteStatus.Expired))</div>
+                    <div class="sub">need re-invite</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fcl-card">
+            <div class="fcl-card-head">
+                <div class="fcl-card-title">Invitation directory</div>
+                <div class="fcl-card-actions">
+                    <button class="btn fcl-add" @onclick="BulkResendVisible"
+                            disabled="@(FilteredCount() == 0)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4z" /></svg>
+                        RESEND TO @FilteredCount() VISIBLE
+                    </button>
+                    <div class="pf-tabs">
+                        <button class="pf-tab @(_tab == "clients" ? "active" : "")" @onclick='() => _tab = "clients"'>
+                            CLIENTS <span class="pf-tab-ct">@clients.Count</span>
+                        </button>
+                        <button class="pf-tab @(_tab == "vendors" ? "active" : "")" @onclick='() => _tab = "vendors"'>
+                            VENDORS <span class="pf-tab-ct">@vendors.Count</span>
+                        </button>
+                    </div>
+                    <div class="fcl-view">
+                        <label>Filter</label>
+                        <select class="modal-input fcl-select" @bind="_filter">
+                            <option value="all">All</option>
+                            <option value="not-invited">Not invited</option>
+                            <option value="invited">Invited</option>
+                            <option value="accepted">Accepted</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fcl-filter-bar" style="grid-template-columns:1fr">
+                <div class="modal-row">
+                    <label class="modal-lbl">Search</label>
+                    <input class="modal-input" placeholder="Search by name, ID, or email…" @bind="_search" @bind:event="oninput" />
+                </div>
+            </div>
+
+            <div class="fcl-meta">
+                Showing <strong>@FilteredCount()</strong> @_tab
+            </div>
+
+            <div class="fcl-table-wrap">
+                @if (_tab == "clients")
+                {
+                    <table class="fcl-table">
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>ETO ID</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Last invited</th>
+                                <th class="num">Sent</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in FilteredClients())
+                            {
+                                var cv = c;
+                                <tr>
+                                    <td><strong>@cv.FullName</strong><div class="muted" style="font-size:11px">@cv.City</div></td>
+                                    <td class="mono">#@cv.EtoId</td>
+                                    <td>@(string.IsNullOrEmpty(cv.Email) ? "—" : cv.Email)</td>
+                                    <td><span class="fcl-pill @InviteClass(cv.InviteStatus)"><span class="fcl-pill-dot"></span>@cv.InviteStatus</span></td>
+                                    <td class="mono muted">@(cv.LastInvitedAt?.ToString("MMM dd, yyyy") ?? "—")</td>
+                                    <td class="num mono">@cv.InviteCount</td>
+                                    <td>
+                                        <button class="btn primary" style="padding:4px 10px;font-size:11px"
+                                                @onclick="() => ResendClient(cv.EtoId)"
+                                                disabled="@string.IsNullOrEmpty(cv.Email)">
+                                            @(cv.InviteStatus == InviteStatus.NotInvited ? "Send invite" : "Resend")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!FilteredClients().Any())
+                            {
+                                <tr><td colspan="7" class="muted" style="text-align:center;padding:34px">No clients match the current filters.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <table class="fcl-table">
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Type</th>
+                                <th>Email</th>
+                                <th>Vendor status</th>
+                                <th>Invite status</th>
+                                <th>Last invited</th>
+                                <th class="num">Sent</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in FilteredVendors())
+                            {
+                                var vv = v;
+                                <tr>
+                                    <td><strong>@vv.Name</strong><div class="muted" style="font-size:11px">@vv.Contact</div></td>
+                                    <td><span class="assoc-pill @(vv.Type == VendorType.Isw ? "client" : "project")">@(vv.Type == VendorType.Isw ? "ISW" : "SP")</span></td>
+                                    <td>@(string.IsNullOrEmpty(vv.Email) ? "—" : vv.Email)</td>
+                                    <td><span class="fcl-pill @VendorStatusClass(vv.Status)"><span class="fcl-pill-dot"></span>@vv.Status</span></td>
+                                    <td><span class="fcl-pill @InviteClass(vv.InviteStatus)"><span class="fcl-pill-dot"></span>@vv.InviteStatus</span></td>
+                                    <td class="mono muted">@(vv.LastInvitedAt?.ToString("MMM dd, yyyy") ?? "—")</td>
+                                    <td class="num mono">@vv.InviteCount</td>
+                                    <td>
+                                        <button class="btn primary" style="padding:4px 10px;font-size:11px"
+                                                @onclick="() => ResendVendor(vv.Id)"
+                                                disabled="@(vv.Status != VendorStatus.Approved || string.IsNullOrEmpty(vv.Email))"
+                                                title="@(vv.Status != VendorStatus.Approved ? "Approve the vendor first" : "")">
+                                            @(vv.InviteStatus == InviteStatus.NotInvited ? "Send invite" : "Resend")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!FilteredVendors().Any())
+                            {
+                                <tr><td colspan="8" class="muted" style="text-align:center;padding:34px">No vendors match the current filters.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private string _tab = "clients";
+    private string _filter = "all";
+    private string _search = "";
+
+    protected override void OnInitialized()
+    {
+        Clients.OnChange += R;
+        Vendors.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<Client> FilteredClients()
+    {
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        return Clients.Clients
+            .Where(c => MatchInvite(c.InviteStatus))
+            .Where(c => string.IsNullOrEmpty(q) ||
+                (c.EtoId + " " + c.FullName + " " + c.Email + " " + c.City).ToLowerInvariant().Contains(q))
+            .OrderBy(c => c.FullName);
+    }
+
+    private IEnumerable<Vendor> FilteredVendors()
+    {
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        return Vendors.Vendors
+            .Where(v => MatchInvite(v.InviteStatus))
+            .Where(v => string.IsNullOrEmpty(q) ||
+                (v.Name + " " + v.Email + " " + v.Contact).ToLowerInvariant().Contains(q))
+            .OrderBy(v => v.Name);
+    }
+
+    private int FilteredCount() => _tab == "clients" ? FilteredClients().Count() : FilteredVendors().Count();
+
+    private bool MatchInvite(InviteStatus s) => _filter switch
+    {
+        "not-invited" => s == InviteStatus.NotInvited,
+        "invited" => s == InviteStatus.Invited,
+        "accepted" => s == InviteStatus.Accepted,
+        "expired" => s == InviteStatus.Expired,
+        _ => true
+    };
+
+    private void ResendClient(string etoId)
+    {
+        if (Clients.SendInvite(etoId))
+        {
+            var c = Clients.LookupEto(etoId);
+            Toasts.Show(ToastKind.Success, $"Invite sent to {c?.FullName} ({c?.Email}).");
+        }
+    }
+
+    private void ResendVendor(string id)
+    {
+        if (Vendors.SendInvite(id))
+        {
+            var v = Vendors.FindById(id);
+            Toasts.Show(ToastKind.Success, $"Invite sent to {v?.Name} ({v?.Email}).");
+        }
+    }
+
+    private void BulkResendVisible()
+    {
+        var count = 0;
+        if (_tab == "clients")
+        {
+            foreach (var c in FilteredClients().Where(c => !string.IsNullOrEmpty(c.Email)).ToList())
+            {
+                Clients.SendInvite(c.EtoId);
+                count++;
+            }
+        }
+        else
+        {
+            foreach (var v in FilteredVendors().Where(v => v.Status == VendorStatus.Approved && !string.IsNullOrEmpty(v.Email)).ToList())
+            {
+                Vendors.SendInvite(v.Id);
+                count++;
+            }
+        }
+        if (count > 0)
+            Toasts.Show(ToastKind.Success, $"Sent {count} invitation{(count == 1 ? "" : "s")}.");
+        else
+            Toasts.Show(ToastKind.Warning, "Nothing in the current view to invite (missing emails or not approved).");
+    }
+
+    private static string InviteClass(InviteStatus s) => s switch
+    {
+        InviteStatus.NotInvited => "fcl-draft",
+        InviteStatus.Invited => "fcl-pending",
+        InviteStatus.Accepted => "fcl-approved",
+        InviteStatus.Expired => "fcl-rejected",
+        _ => "fcl-draft"
+    };
+
+    private static string VendorStatusClass(VendorStatus s) => s switch
+    {
+        VendorStatus.Approved => "fcl-approved",
+        VendorStatus.Pending => "fcl-pending",
+        VendorStatus.Rejected => "fcl-rejected",
+        _ => "fcl-draft"
+    };
+
+    public void Dispose()
+    {
+        Clients.OnChange -= R;
+        Vendors.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

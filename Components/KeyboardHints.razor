@@ -1,0 +1,21 @@
+@inject FundingCommitmentService Svc
+
+<div class="kbd-hints @(Svc.HintsVisible ? "" : "hidden")">
+    <span class="hint"><span class="k">J</span><span class="k">K</span><span class="lbl">navigate</span></span>
+    <span class="hint"><span class="k">Space</span><span class="lbl">select</span></span>
+    <span class="hint"><span class="k">A</span><span class="lbl">approve</span></span>
+    <span class="hint"><span class="k">⇧A</span><span class="lbl">bulk approve</span></span>
+    <span class="hint"><span class="k">E</span><span class="lbl">bulk edit</span></span>
+    <span class="hint"><span class="k">⌘A</span><span class="lbl">select all</span></span>
+    <button class="toggle" @onclick="Hide" title="Hide hints">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+    </button>
+</div>
+
+@code {
+    private void Hide()
+    {
+        Svc.HintsVisible = false;
+        Svc.NotifyChanged();
+    }
+}

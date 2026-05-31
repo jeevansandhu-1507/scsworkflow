@@ -1,0 +1,25 @@
+# Ignore Visual Studio and .NET Build Outputs
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+
+# Visual Studio / Code user settings
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# OS generated files
+.DS_Store
+.DS_Store?
+[Tt]humbs.db
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates

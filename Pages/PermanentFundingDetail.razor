@@ -1,0 +1,383 @@
+@page "/permanent-funding/{Id}"
+@implements IDisposable
+@inject PermanentFundingService Pf
+@inject FundingCommitmentService Fc
+@inject ProjectService Projects
+@inject ClientDirectoryService Clients
+@inject NavigationManager Nav
+@inject LocaleService L
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject AuditService Audit
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+}
+
+<PageTitle>SCS Portal · @L.PermanentFunding</PageTitle>
+
+<section class="page">
+    @{
+        var pf = Pf.FindById(Id);
+    }
+
+    @if (pf == null)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Not found</div>
+            <div class="empty-sub">No permanent funding record with id @Id.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/permanent-funding")'>Back to list</button>
+        </div>
+    }
+    else
+    {
+        var allFcs = Fc.Rows.Where(r => r.PermanentFundingId == pf.Id).ToList();
+        var fcs = FilterFcs(allFcs);
+        var committed = allFcs.Sum(r => r.Total);
+        var remaining = pf.BudgetAmount - committed;
+
+        <div class="page-header">
+            <div class="page-title">
+                <div class="eyebrow">@pf.Reference</div>
+                <h1>@pf.LinkedEntityName</h1>
+                <p class="sub">
+                    @pf.Program · @pf.FiscalYear ·
+                    <span class="assoc-pill @(pf.Association == AssociationType.Client ? "client" : "project")">
+                        @(pf.Association == AssociationType.Client ? "Client-Based" : "Project-Based")
+                    </span>
+                    · <strong>@pf.FundingStatusLabel</strong>
+                </p>
+            </div>
+            <div class="stat-strip">
+                <div class="stat stat-money-main">
+                    <div class="lbl">Budget</div>
+                    <div class="v">@Money(pf.BudgetAmount)</div>
+                    <div class="sub">@pf.FiscalYear</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Committed</div>
+                    <div class="v">@Money(committed)</div>
+                    <div class="sub">across @allFcs.Count FC@(allFcs.Count == 1 ? "" : "s")</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Remaining</div>
+                    <div class="v" style="color:@(remaining < 0 ? "var(--danger)" : "var(--success)")">@Money(remaining)</div>
+                    <div class="sub">@(remaining < 0 ? "over budget" : "available")</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Status</div>
+                    <div class="v" style="font-size:16px">@StatusLabel(pf)</div>
+                    <div class="sub">@(pf.RolloverEligible && !pf.AlreadyRolledOver ? "rollover-eligible" : "not eligible")</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab strip + action toolbar -->
+        <div class="pf-tabbar">
+            <button class="btn ghost" @onclick='() => Nav.NavigateTo("/permanent-funding")'>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" /></svg>
+                BACK TO LIST
+            </button>
+            @if (UserCtx.IsFinance || UserCtx.IsAdmin)
+            {
+                <button class="btn" @onclick='() => Nav.NavigateTo("/funding-commitments/new")'>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+                    ADD NEW FUNDING COMMITMENT
+                </button>
+            }
+            <div class="pf-tabs">
+                <button class="pf-tab @(_tab == "details" ? "active" : "")" @onclick='() => _tab = "details"'>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /></svg>
+                    DETAILS
+                </button>
+                <button class="pf-tab @(_tab == "history" ? "active" : "")" @onclick='() => _tab = "history"'>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                    HISTORY <span class="pf-tab-ct">@HistoryCount(pf.Id)</span>
+                </button>
+                <button class="pf-tab @(_tab == "fc" ? "active" : "")" @onclick='() => _tab = "fc"'>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+                    FUNDING COMMITMENT <span class="pf-tab-ct">@allFcs.Count</span>
+                </button>
+            </div>
+            @if (_tab == "fc")
+            {
+                <span class="pf-fc-total" style="margin-left:auto">Total: <strong>@Money(committed)</strong></span>
+            }
+        </div>
+
+        @if (_tab == "details")
+        {
+            <div class="detail-grid">
+            <div class="db-card">
+                <div class="db-head"><h3>@L.T("Funding metadata", "Métadonnées de financement")</h3></div>
+                <div class="kv-grid">
+                    <div class="kv"><span class="k">Reference</span><span class="v mono">@pf.Reference</span></div>
+                    <div class="kv"><span class="k">Funding source</span><span class="v">@pf.FundingSource</span></div>
+                    <div class="kv"><span class="k">Program</span><span class="v">@pf.Program</span></div>
+                    <div class="kv"><span class="k">Ministry</span><span class="v">@pf.Ministry</span></div>
+                    <div class="kv"><span class="k">Effective</span><span class="v mono">@pf.EffectiveStart.ToString("yyyy-MM-dd") → @pf.EffectiveEnd.ToString("yyyy-MM-dd")</span></div>
+                    <div class="kv"><span class="k">Created by</span><span class="v">@pf.CreatedBy</span></div>
+                    <div class="kv"><span class="k">Rollover eligible</span><span class="v">@(pf.RolloverEligible ? "Yes" : "No")</span></div>
+                    <div class="kv"><span class="k">Already rolled over</span><span class="v">@(pf.AlreadyRolledOver ? "Yes" : "No")</span></div>
+                </div>
+            </div>
+            <div class="db-card">
+                <div class="db-head"><h3>@L.T("Linked entity", "Entité liée")</h3></div>
+                @if (pf.Association == AssociationType.Client)
+                {
+                    var c = Clients.LookupEto(pf.LinkedEntityId);
+                    <div class="kv-grid">
+                        <div class="kv"><span class="k">Type</span><span class="v">Client</span></div>
+                        <div class="kv"><span class="k">ETO ID</span><span class="v mono">@pf.LinkedEntityId</span></div>
+                        <div class="kv"><span class="k">Name</span><span class="v">@(c?.FullName ?? pf.LinkedEntityName)</span></div>
+                        <div class="kv"><span class="k">DOB</span><span class="v mono">@(c?.Dob ?? "—")</span></div>
+                        <div class="kv"><span class="k">Guardian</span><span class="v">@(c?.Guardian ?? "—")</span></div>
+                        <div class="kv"><span class="k">Email</span><span class="v">@(c?.Email ?? "—")</span></div>
+                    </div>
+                }
+                else
+                {
+                    var p = Projects.FindById(pf.LinkedEntityId);
+                    <div class="kv-grid">
+                        <div class="kv"><span class="k">Type</span><span class="v">Project</span></div>
+                        <div class="kv"><span class="k">Project ID</span><span class="v mono">@pf.LinkedEntityId</span></div>
+                        <div class="kv"><span class="k">Name</span><span class="v">@(p?.Name ?? pf.LinkedEntityName)</span></div>
+                        <div class="kv"><span class="k">Code</span><span class="v mono">@(p?.Code ?? "—")</span></div>
+                        <div class="kv"><span class="k">Sponsor</span><span class="v">@(p?.Sponsor ?? "—")</span></div>
+                        <div class="kv"><span class="k">Manager</span><span class="v">@(p?.ManagerName ?? "—")</span></div>
+                    </div>
+                }
+            </div>
+            <div class="db-card" style="grid-column: 1 / span 2; margin-top: 18px">
+                <div class="db-head"><h3>@L.T("Allocations & GL Mappings", "Allocations et codes comptables")</h3></div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px">
+                    @if (pf.AllocationTypes.Contains("Residential"))
+                    {
+                        <div style="border: 1px solid var(--border-soft); padding: 12px; border-radius: 6px">
+                            <h4 style="font-weight:600; font-size:13px; margin:0 0 8px 0; color:var(--brand-700)">Residential Allocation</h4>
+                            <div class="kv-grid">
+                                <div class="kv"><span class="k">Ministry Approved (GL 5905)</span><span class="v mono">@Money(pf.MinistryApprovedAllocationResidential)</span></div>
+                                <div class="kv"><span class="k">SCS Permanent Pressure (GL 5810)</span><span class="v mono">@Money(pf.SCSPermanentPressureApprovalResidential)</span></div>
+                                <div class="kv"><span class="k">Total Residential Budget</span><span class="v mono" style="font-weight:bold">@Money(pf.TotalApprovedPermanentAllocationResidential)</span></div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(pf.ResidentialPlacementType))
+                            {
+                                <div style="font-size:11px; margin-top:8px" class="muted">Placement Type: <strong>@pf.ResidentialPlacementType</strong></div>
+                            }
+                        </div>
+                    }
+                    @if (pf.AllocationTypes.Contains("CP"))
+                    {
+                        <div style="border: 1px solid var(--border-soft); padding: 12px; border-radius: 6px">
+                            <h4 style="font-weight:600; font-size:13px; margin:0 0 8px 0; color:var(--brand-700)">CP Allocation</h4>
+                            <div class="kv-grid">
+                                <div class="kv"><span class="k">Ministry Approved (GL 5910)</span><span class="v mono">@Money(pf.MinistryApprovedAllocationCP)</span></div>
+                                <div class="kv"><span class="k">SCS Permanent Pressure (GL 5820)</span><span class="v mono">@Money(pf.SCSPermanentPressureApprovalCP)</span></div>
+                                <div class="kv"><span class="k">Total CP Budget</span><span class="v mono" style="font-weight:bold">@Money(pf.TotalApprovedPermanentAllocationCP)</span></div>
+                            </div>
+                        </div>
+                    }
+                    @if (pf.AllocationTypes.Contains("Operational"))
+                    {
+                        <div style="border: 1px solid var(--border-soft); padding: 12px; border-radius: 6px">
+                            <h4 style="font-weight:600; font-size:13px; margin:0 0 8px 0; color:var(--brand-700)">SCS Operational Allocation</h4>
+                            <div class="kv-grid">
+                                <div class="kv"><span class="k">Ministry Approved CM</span><span class="v mono">@Money(pf.MinistryApprovedCMAllocationAmount)</span></div>
+                                <div class="kv"><span class="k">Ministry Approved ACA</span><span class="v mono">@Money(pf.MinistryApprovedACAAllocationAmount)</span></div>
+                                <div class="kv"><span class="k">Total Operational Load</span><span class="v mono" style="font-weight:bold">@Money(pf.TotalMinistryApprovedOperationalLoad)</span></div>
+                            </div>
+                        </div>
+                    }
+                    @if (pf.AllocationTypes.Contains("Passport"))
+                    {
+                        <div style="border: 1px solid var(--border-soft); padding: 12px; border-radius: 6px">
+                            <h4 style="font-weight:600; font-size:13px; margin:0 0 8px 0; color:var(--brand-700)">Passport / Historical Respite Allocation</h4>
+                            <div class="kv-grid">
+                                <div class="kv"><span class="k">Approved Passport (GL 5965)</span><span class="v mono">@Money(pf.ApprovedPassportAllocation)</span></div>
+                                <div class="kv"><span class="k">Historical Respite (GL 5940)</span><span class="v mono">@Money(pf.HistoricalRespiteAllocation)</span></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        }
+
+        @if (_tab == "history")
+        {
+            <div class="db-card" style="margin-top:18px">
+                <div class="db-head"><h3>@L.T("Change history", "Historique des modifications")</h3></div>
+                <EntityHistory EntityType="PermanentFunding" EntityId="@pf.Id" />
+            </div>
+        }
+
+        @if (_tab == "fc")
+        {
+        <!-- Associated Funding Commitments (FRD §6.3) -->
+        <div class="db-card" style="margin-top:18px">
+            <div class="db-head">
+                <h3>@L.T("Associated Funding Commitments", "Engagements de financement associés")</h3>
+                <div class="toolbar-inline">
+                    <div class="filter-chips" style="gap:4px">
+                        <button class="chip @(_fcFilter == "" ? "active" : "")" @onclick='() => _fcFilter = ""'>All <span class="count">@allFcs.Count</span></button>
+                        <button class="chip @(_fcFilter == "draft" ? "active" : "")" @onclick='() => _fcFilter = "draft"'>Draft <span class="count">@allFcs.Count(r => r.Status == CommitmentStatus.Draft)</span></button>
+                        <button class="chip @(_fcFilter == "pending" ? "active" : "")" @onclick='() => _fcFilter = "pending"'>Pending <span class="count">@allFcs.Count(r => IsPending(r.Status))</span></button>
+                        <button class="chip @(_fcFilter == "approved" ? "active" : "")" @onclick='() => _fcFilter = "approved"'>Approved <span class="count">@allFcs.Count(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active)</span></button>
+                    </div>
+                    <input class="modal-input" style="min-width:200px" placeholder="Search FC, client, vendor…" @bind="_fcSearch" @bind:event="oninput" />
+                </div>
+            </div>
+            @if (!fcs.Any())
+            {
+                <div class="empty-state" style="margin:0;border-radius:0">
+                    <div class="empty-title">No FCs linked yet</div>
+                    <div class="empty-sub">Use the rollover queue or create a new FC to attach one.</div>
+                </div>
+            }
+            else
+            {
+                <div class="data-table-wrap inline">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>FC Ref</th>
+                                <th>Fiscal Year</th>
+                                <th>Status</th>
+                                <th>Linked</th>
+                                <th>Funding type</th>
+                                <th class="num">Budget</th>
+                                <th class="num">Remaining</th>
+                                <th>Vendors</th>
+                                <th>Created by</th>
+                                <th>Approval dates</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in fcs)
+                            {
+                                var st = StatusInfo.For(r.Status);
+                                var planSum = r.PlanAmounts.Values.Sum();
+                                var rem = planSum - r.Total;
+                                var vendors = string.Join(", ", r.Services.Select(s => s.Vendor).Distinct().Take(3));
+                                <tr @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                                    <td class="mono">@r.CommitId</td>
+                                    <td class="mono">@r.FiscalYear</td>
+                                    <td><span class="status-pill @st.CssClass">@st.Label</span></td>
+                                    <td>@r.ClientName</td>
+                                    <td>@(r.MccssTypes.Count == 0 ? "—" : r.MccssTypes[0])</td>
+                                    <td class="num mono">@Money(planSum)</td>
+                                    <td class="num mono @(rem < 0 ? "over" : "")">@Money(rem)</td>
+                                    <td class="muted">@(string.IsNullOrEmpty(vendors) ? "—" : vendors)</td>
+                                    <td>@r.Creator</td>
+                                    <td class="muted mono">@(r.FinanceApprovedAt?.ToString("MMM dd") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        var roots = allFcs.Where(r => r.ParentFundingCommitmentId == null).ToList();
+        @if (roots.Any())
+        {
+            <div class="db-card" style="margin-top:18px">
+                <div class="db-head"><h3>@L.T("Lifecycle chain", "Chaîne de cycle de vie")</h3></div>
+                <div class="lifecycle">
+                    <div class="lc-node lc-pf">
+                        <div class="lc-tag">Permanent</div>
+                        <div class="lc-ttl">@pf.Reference</div>
+                        <div class="lc-sub">@pf.FiscalYear</div>
+                    </div>
+                    @foreach (var root in roots)
+                    {
+                        var chain = BuildChain(root, allFcs);
+                        <div class="lc-row">
+                            <span class="lc-arrow">→</span>
+                            @foreach (var c in chain)
+                            {
+                                var st = StatusInfo.For(c.Status);
+                                <div class="lc-node lc-fc">
+                                    <div class="lc-tag">FC</div>
+                                    <div class="lc-ttl mono">@c.CommitId</div>
+                                    <div class="lc-sub">@c.FiscalYear · @st.Label</div>
+                                </div>
+                                if (c != chain.Last())
+                                {
+                                    <span class="lc-arrow">→</span>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        }
+    }
+</section>
+
+@code {
+    private string _tab = "details";
+    private string _fcFilter = "";
+    private string _fcSearch = "";
+
+    private int HistoryCount(string pfId) =>
+        Audit.Entries.Count(e => e.EntityType == "PermanentFunding" && e.EntityId == pfId);
+
+    protected override void OnInitialized()
+    {
+        Pf.OnChange += R;
+        Fc.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<FundingCommitment> FilterFcs(IEnumerable<FundingCommitment> src)
+    {
+        var q = (_fcSearch ?? "").Trim().ToLowerInvariant();
+        return src.Where(r =>
+        {
+            if (_fcFilter == "draft" && r.Status != CommitmentStatus.Draft) return false;
+            if (_fcFilter == "pending" && !IsPending(r.Status)) return false;
+            if (_fcFilter == "approved" && r.Status is not (CommitmentStatus.Approved or CommitmentStatus.Active)) return false;
+            if (string.IsNullOrEmpty(q)) return true;
+            var hay = (r.CommitId + " " + r.ClientName + " " + r.LinkedEntityId + " " + string.Join(" ", r.Services.Select(s => s.Vendor))).ToLowerInvariant();
+            return hay.Contains(q);
+        });
+    }
+
+    private static bool IsPending(CommitmentStatus s) =>
+        s is CommitmentStatus.Pending or CommitmentStatus.Awaiting or CommitmentStatus.Special
+          or CommitmentStatus.Finance or CommitmentStatus.Ministry;
+
+    private static string Money(decimal n) => "$" + n.ToString("N2");
+
+    private static string StatusLabel(PermanentFunding pf) =>
+        pf.AlreadyRolledOver ? "Rolled over"
+        : pf.Status == PermanentFundingStatus.Active ? "Active"
+        : pf.Status == PermanentFundingStatus.OnHold ? "On hold"
+        : "Closed";
+
+    private List<FundingCommitment> BuildChain(FundingCommitment root, List<FundingCommitment> all)
+    {
+        var chain = new List<FundingCommitment> { root };
+        var cur = root;
+        while (true)
+        {
+            var child = all.FirstOrDefault(r => r.ParentFundingCommitmentId == cur.CommitId);
+            if (child == null) break;
+            chain.Add(child);
+            cur = child;
+        }
+        return chain;
+    }
+
+    public void Dispose()
+    {
+        Pf.OnChange -= R;
+        Fc.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

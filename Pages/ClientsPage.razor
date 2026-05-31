@@ -1,0 +1,84 @@
+@page "/clients"
+@implements IDisposable
+@inject ClientDirectoryService Clients
+@inject FundingCommitmentService Fc
+@inject PermanentFundingService Pf
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.Clients</PageTitle>
+
+<section class="page">
+    <div class="page-header">
+        <div class="page-title">
+            <div class="eyebrow">@L.Clients</div>
+            <h1>@L.T("Clients (ETO directory)", "Clients (annuaire ETO)")</h1>
+            <p class="sub">@L.T("Mock ETO lookup. Funding Commitments fetch client details via the ETO Client ID.", "Recherche ETO simulée. Les engagements récupèrent les détails via l'ID client.")</p>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <input class="modal-input" style="min-width:320px" placeholder="Search by ETO ID, name, city, guardian…" @bind="_search" @bind:event="oninput" />
+    </div>
+
+    <div class="data-table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ETO ID</th>
+                    <th>Name</th>
+                    <th>DOB</th>
+                    <th>Guardian</th>
+                    <th>City</th>
+                    <th class="num">PFs</th>
+                    <th class="num">FCs</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Filtered())
+                {
+                    var pfs = Pf.Records.Count(r => r.Association == AssociationType.Client && r.LinkedEntityId == c.EtoId);
+                    var fcs = Fc.Rows.Count(r => r.Association == AssociationType.Client && r.ClientId == c.EtoId);
+                    <tr>
+                        <td class="mono">#@c.EtoId</td>
+                        <td><strong>@c.FullName</strong></td>
+                        <td class="mono">@c.Dob</td>
+                        <td>@(string.IsNullOrEmpty(c.Guardian) ? "—" : c.Guardian)</td>
+                        <td>@c.City</td>
+                        <td class="num mono">@pfs</td>
+                        <td class="num mono">@fcs</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private string _search = "";
+
+    protected override void OnInitialized()
+    {
+        Clients.OnChange += R;
+        Fc.OnChange += R;
+        Pf.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<Client> Filtered()
+    {
+        var q = (_search ?? "").Trim().ToLowerInvariant();
+        return string.IsNullOrEmpty(q)
+            ? Clients.Clients
+            : Clients.Clients.Where(c => (c.EtoId + " " + c.FullName + " " + c.City + " " + c.Guardian).ToLowerInvariant().Contains(q));
+    }
+
+    public void Dispose()
+    {
+        Clients.OnChange -= R;
+        Fc.OnChange -= R;
+        Pf.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

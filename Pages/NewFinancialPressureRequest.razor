@@ -1,0 +1,368 @@
+@page "/financial-pressure/new"
+@implements IDisposable
+@inject FinancialPressureService Fp
+@inject FundingCommitmentService Fc
+@inject ActiveContextService ActiveCtx
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject LocaleService L
+@inject NavigationManager Nav
+
+<PageTitle>SCS Portal · New Financial Pressure Request</PageTitle>
+
+<section class="page wizard-page-wide">
+    @if (UserCtx.Effective.Role != AppRole.VendorSp)
+    {
+        <div class="empty-state">
+            <div class="empty-title">SP-only form</div>
+            <div class="empty-sub">Only Service Providers (SP) submit financial pressure requests. Use the list view to review submissions.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/financial-pressure")'>Back to list</button>
+        </div>
+    }
+    else
+    {
+        <div class="fp-form">
+            <header class="fp-head">
+                <button class="btn ghost" style="margin-right:10px" @onclick='() => Nav.NavigateTo("/financial-pressure")'>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" /></svg>
+                    Back to list
+                </button>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+                <h1>New Financial Pressure Request</h1>
+            </header>
+
+            <div class="fp-info">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+                <div>
+                    <div>This form is used to request that an individualized financial pressure be added to the pressure list for consideration by the Resource Coordinator. Submitting this form does not constitute approval. Decisions will be made based on fiscal flexibility within the current year at SCS.</div>
+                    <div style="margin-top:4px">This form is not to be used to submit per diem related financial pressure requests.</div>
+                </div>
+            </div>
+
+            <!-- Section 1: Requestor Information -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 1: Requestor Information</h3>
+                <div class="fp-grid-3">
+                    <div class="modal-row">
+                        <label class="modal-lbl">Name <span class="req">*</span></label>
+                        <input class="modal-input" @bind="_form.RequestorName" />
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Role / Title <span class="req">*</span></label>
+                        <input class="modal-input" placeholder="Enter your role or title" @bind="_form.RequestorRole" />
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Date <span class="req">*</span></label>
+                        <input type="date" class="modal-input"
+                               value="@_form.RequestDate.ToString("yyyy-MM-dd")"
+                               @onchange="@(e => _form.RequestDate = DateTime.TryParse(e.Value?.ToString(), out var dt) ? dt : DateTime.Today)" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Client Information -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 2: Client Information</h3>
+                <div class="fp-grid-2">
+                    <div class="modal-row">
+                        <label class="modal-lbl">Client Name <span class="req">*</span></label>
+                        <input class="modal-input pf-readout" readonly value="@_form.ClientName" />
+                        <span class="fp-hint">Auto-populated from the active client</span>
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Client ID <span class="req">*</span></label>
+                        <input class="modal-input pf-readout" readonly value="@_form.ClientId" />
+                        <span class="fp-hint">Auto-populated from the active client</span>
+                    </div>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">Brief Description of Need <span class="req">*</span></label>
+                    <span class="fp-hint">Please specify the type of need (e.g., medical, behavioural, staffing, etc.) and the risks it presents.</span>
+                    <textarea class="modal-input wiz-textarea" placeholder="Describe the need…" @bind="_form.NeedDescription"></textarea>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">How often will this additional support be needed? <span class="req">*</span></label>
+                    <select class="modal-input" @bind="_form.Frequency">
+                        <option value="">Select frequency</option>
+                        @foreach (var f in _frequencies) { <option value="@f">@f</option> }
+                    </select>
+                    <div class="fp-freq-guide">
+                        <div class="fp-freq-h"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg> Frequency guide</div>
+                        <div class="fp-freq-grid">
+                            <div><strong>One-time</strong><span>Support required once for a specific, short period</span></div>
+                            <div><strong>Time-limited</strong><span>Support required for a defined period with a known end date</span></div>
+                            <div><strong>Recurring</strong><span>Support required on a regular schedule for a defined duration</span></div>
+                            <div><strong>Ongoing</strong><span>Support required indefinitely, subject to periodic review</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Financial Details -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 3: Financial Details</h3>
+                <div class="fp-grid-3">
+                    <div class="modal-row">
+                        <label class="modal-lbl">Support Type <span class="req">*</span></label>
+                        <select class="modal-input" @bind="_form.SupportType" @bind:after="OnSupportPicked">
+                            <option value="">Select type</option>
+                            @foreach (var s in AvailableSupportTypes())
+                            {
+                                <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                            }
+                        </select>
+                        <span class="fp-hint">Select a support type from this client's approved or active funding commitment service lines.</span>
+                        @if (!AvailableSupportTypes().Any())
+                        {
+                            <span class="fp-hint" style="color:var(--danger)">No support types from approved funding commitment assignments are available for this client.</span>
+                        }
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Quantity Type <span class="req">*</span></label>
+                        <select class="modal-input" @bind="_form.QuantityType">
+                            <option value="">Select quantity type</option>
+                            <option value="Hours">Hours</option>
+                            <option value="Sessions">Sessions</option>
+                            <option value="Days">Days</option>
+                            <option value="Visits">Visits</option>
+                            <option value="Items">Items</option>
+                        </select>
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Quantity <span class="req">*</span></label>
+                        <input type="number" min="0" class="modal-input"
+                               value="@_form.Quantity"
+                               @onchange="@(e => { _form.Quantity = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0; })" />
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Rate (per unit) <span class="req">*</span></label>
+                        <input type="number" min="0" step="0.01" class="modal-input"
+                               value="@(_form.Rate == 0 ? "" : _form.Rate.ToString("0.##"))"
+                               placeholder="$0.00"
+                               @onchange="@(e => { _form.Rate = decimal.TryParse(e.Value?.ToString(), out var n) ? n : 0; })" />
+                    </div>
+                    <div class="modal-row">
+                        <label class="modal-lbl">Total Estimated Cost <span class="req">*</span></label>
+                        <input type="text" class="modal-input pf-readout" readonly value="@TotalCost.ToString("C2")" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: Validation Questions -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 4: Validation Questions</h3>
+                <div class="modal-row">
+                    <label class="modal-lbl">Is there a Behavioural Support Plan (BSP) in place for this client? <span class="req">*</span></label>
+                    <select class="modal-input" @bind="_form.HasBsp">
+                        <option value="">Select Yes or No</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">What alternative funding avenues have been explored? (For example, ODSP, Passport, etc.) <span class="req">*</span></label>
+                    <textarea class="modal-input wiz-textarea" @bind="_form.AlternativeFunding"></textarea>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">How does this align with the client's care plan or service goals? <span class="req">*</span></label>
+                    <textarea class="modal-input wiz-textarea" @bind="_form.AlignmentWithCarePlan"></textarea>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">Are there alternative support solutions that could partially meet the need? <span class="req">*</span></label>
+                    <textarea class="modal-input wiz-textarea" @bind="_form.AlternativeSolutions"></textarea>
+                </div>
+                <div class="modal-row" style="margin-top:14px">
+                    <label class="modal-lbl">Has similar support been provided previously? <span class="req">*</span></label>
+                    <select class="modal-input" @bind="_form.SimilarSupportPreviously">
+                        <option value="">Select Yes or No</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Section 5: Supporting Documents -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 5: Supporting Documents</h3>
+                <div class="modal-row">
+                    <label class="modal-lbl">Please upload supporting documents (Estimates, quotes, etc.) <span class="req">*</span></label>
+                    <span class="fp-hint">Allowed: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG · Max 10 MB per file · Up to 5 files</span>
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input class="modal-input" style="max-width:380px" placeholder="filename.pdf (mock)" @bind="_newAttachment" />
+                            <button class="btn" @onclick="AddAttachment" disabled="@string.IsNullOrWhiteSpace(_newAttachment)">+ Add file</button>
+                        </div>
+                        @foreach (var a in _form.Attachments)
+                        {
+                            var av = a;
+                            <div class="fp-attach">
+                                <span>📎 @a</span>
+                                <button class="btn ghost" style="padding:2px 6px;color:var(--danger)" @onclick="() => _form.Attachments.Remove(av)">✕</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 6: Additional Notes -->
+            <div class="fp-sec">
+                <h3 class="fp-sec-h">Section 6: Additional Notes</h3>
+                <div class="modal-row">
+                    <label class="modal-lbl">Additional Information (Optional)</label>
+                    <textarea class="modal-input wiz-textarea" placeholder="Any extra information…" @bind="_form.AdditionalNotes"></textarea>
+                </div>
+            </div>
+
+            <div class="fp-disclaimer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+                This form is for adding a financial pressure to the consideration list. It does not guarantee approval. Decisions are based on available fiscal flexibility within the current year.
+                <br />This form is not to be used to submit per diem related financial pressure requests.
+            </div>
+
+            <footer class="pf-edit-foot">
+                <div style="flex:1"></div>
+                <button class="btn ghost" @onclick='() => Nav.NavigateTo("/financial-pressure")'>CANCEL</button>
+                <button class="btn" @onclick="SaveDraft">SAVE DRAFT</button>
+                <button class="btn primary" @onclick="SubmitRequest" disabled="@(!CanSubmit())">✓ SUBMIT REQUEST</button>
+            </footer>
+        </div>
+    }
+</section>
+
+@code {
+    private FpForm _form = new();
+    private string _newAttachment = "";
+
+    private readonly string[] _frequencies = { "One-time", "Time-limited", "Recurring", "Ongoing" };
+
+    private decimal TotalCost => _form.Quantity * _form.Rate;
+
+    private class FpForm
+    {
+        public string RequestorName { get; set; } = "";
+        public string RequestorRole { get; set; } = "";
+        public DateTime RequestDate { get; set; } = DateTime.Today;
+        public string ClientName { get; set; } = "";
+        public string ClientId { get; set; } = "";
+        public string NeedDescription { get; set; } = "";
+        public string Frequency { get; set; } = "";
+        public string SupportType { get; set; } = "";
+        public string QuantityType { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal Rate { get; set; }
+        public string HasBsp { get; set; } = "";
+        public string AlternativeFunding { get; set; } = "";
+        public string AlignmentWithCarePlan { get; set; } = "";
+        public string AlternativeSolutions { get; set; } = "";
+        public string SimilarSupportPreviously { get; set; } = "";
+        public List<string> Attachments { get; set; } = new();
+        public string AdditionalNotes { get; set; } = "";
+        public string FcId { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        ActiveCtx.OnChange += R;
+        UserCtx.OnChange += R;
+        BindForm();
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void BindForm()
+    {
+        var u = UserCtx.Effective;
+        _form.RequestorName = u.FullName;
+        _form.RequestorRole = RoleInfo.Label(u.Role);
+        if (ActiveCtx.HasActive)
+        {
+            _form.ClientName = ActiveCtx.DisplayName;
+            _form.ClientId = ActiveCtx.DisplayId;
+        }
+    }
+
+    private IEnumerable<ServiceLine> AvailableSupportTypes()
+    {
+        if (!ActiveCtx.HasActive) return Array.Empty<ServiceLine>();
+        var srcFcs = Fc.Rows.Where(r =>
+            (ActiveCtx.Kind == ActiveContextKind.Client &&
+             r.Association == AssociationType.Client &&
+             r.ClientId == ActiveCtx.ActiveClient!.EtoId) ||
+            (ActiveCtx.Kind == ActiveContextKind.Project &&
+             r.Association == AssociationType.Project &&
+             r.LinkedEntityId == ActiveCtx.ActiveProject!.Id))
+            .Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active);
+        var vendor = ResolveVendorName();
+        return srcFcs.SelectMany(r => r.Services)
+                     .Where(s => string.Equals(s.Vendor, vendor, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string ResolveVendorName()
+    {
+        var u = UserCtx.Effective;
+        if (u.LinkedVendorId == "v-sp-01") return "Maple Care Inc.";
+        if (u.LinkedVendorId == "v-isw-01") return "Ima Worker";
+        return u.FullName;
+    }
+
+    private void OnSupportPicked()
+    {
+        var match = AvailableSupportTypes().FirstOrDefault(s => s.Name == _form.SupportType);
+        if (match != null)
+        {
+            _form.Rate = match.Rate;
+            var ownerFc = Fc.Rows.FirstOrDefault(r => r.Services.Any(s => s.Name == _form.SupportType));
+            if (ownerFc != null) _form.FcId = ownerFc.CommitId;
+        }
+    }
+
+    private void AddAttachment()
+    {
+        if (string.IsNullOrWhiteSpace(_newAttachment)) return;
+        _form.Attachments.Add(_newAttachment.Trim());
+        _newAttachment = "";
+    }
+
+    private bool CanSubmit() =>
+        !string.IsNullOrWhiteSpace(_form.RequestorName)
+        && !string.IsNullOrWhiteSpace(_form.RequestorRole)
+        && !string.IsNullOrWhiteSpace(_form.ClientName)
+        && !string.IsNullOrWhiteSpace(_form.NeedDescription)
+        && !string.IsNullOrEmpty(_form.Frequency)
+        && !string.IsNullOrEmpty(_form.SupportType)
+        && !string.IsNullOrEmpty(_form.QuantityType)
+        && _form.Quantity > 0 && _form.Rate > 0
+        && !string.IsNullOrEmpty(_form.HasBsp)
+        && !string.IsNullOrWhiteSpace(_form.AlternativeFunding)
+        && !string.IsNullOrWhiteSpace(_form.AlignmentWithCarePlan)
+        && !string.IsNullOrWhiteSpace(_form.AlternativeSolutions)
+        && !string.IsNullOrEmpty(_form.SimilarSupportPreviously)
+        && _form.Attachments.Count > 0;
+
+    private void SaveDraft()
+    {
+        Toasts.Show(ToastKind.Success, "Draft saved locally. Use Submit when ready.");
+    }
+
+    private void SubmitRequest()
+    {
+        if (!CanSubmit())
+        {
+            Toasts.Show(ToastKind.Warning, "Please fill all required fields.");
+            return;
+        }
+        var assoc = ActiveCtx.Kind == ActiveContextKind.Project ? AssociationType.Project : AssociationType.Client;
+        var prio = TotalCost > 5000 ? FpPriority.High : FpPriority.Normal;
+        Fp.Submit(_form.RequestorName, _form.FcId, assoc, _form.ClientName,
+                  TotalCost, _form.SupportType, _form.NeedDescription, prio);
+        Toasts.Show(ToastKind.Success, $"Request submitted · {TotalCost:C2} for {_form.ClientName}");
+        Nav.NavigateTo("/financial-pressure");
+    }
+
+    public void Dispose()
+    {
+        ActiveCtx.OnChange -= R;
+        UserCtx.OnChange -= R;
+    }
+}

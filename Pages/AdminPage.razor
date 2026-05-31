@@ -1,0 +1,124 @@
+@page "/admin"
+@implements IDisposable
+@inject UserContextService UserCtx
+@inject AuditService Audit
+@inject ToastService Toasts
+@inject LocaleService L
+
+<PageTitle>SCS Portal · @L.Admin</PageTitle>
+
+<section class="page">
+    @if (!UserCtx.IsAdmin)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Admin only</div>
+            <div class="empty-sub">Switch to the SCS Admin role via the topbar to access this page.</div>
+        </div>
+    }
+    else
+    {
+        <div class="page-header">
+            <div class="page-title">
+                <div class="eyebrow">@L.Admin</div>
+                <h1>@L.T("Users & roles", "Utilisateurs et rôles")</h1>
+                <p class="sub">@L.T("Manage roles, permissions, and impersonation (FRD §3.1, §14).", "Gérer les rôles et l'impersonation.")</p>
+            </div>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Role</th><th>Email</th><th>Linked entity</th><th>Active</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in UserCtx.Users)
+                    {
+                        <tr>
+                            <td><strong>@u.FullName</strong></td>
+                            <td>
+                                <select class="modal-input" style="min-width:160px" value="@u.Role" @onchange="@(e => ChangeRole(u, e.Value?.ToString()))">
+                                    @foreach (var r in Enum.GetValues<AppRole>())
+                                    {
+                                        <option value="@r" selected="@(r == u.Role)">@RoleInfo.Label(r)</option>
+                                    }
+                                </select>
+                            </td>
+                            <td class="muted">@u.Email</td>
+                            <td class="mono muted">@(u.LinkedClientId ?? u.LinkedVendorId ?? "—")</td>
+                            <td>
+                                <input type="checkbox" checked="@u.Active" @onchange="@(e => ChangeActive(u, (bool?)e.Value ?? true))" />
+                            </td>
+                            <td>
+                                @if (u.Id != UserCtx.Current.Id)
+                                {
+                                    <button class="btn primary" style="padding:4px 10px;font-size:11px" @onclick="() => LoginAs(u)">Login-as-user</button>
+                                }
+                                else
+                                {
+                                    <span class="muted">current user</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="db-card" style="margin-top:18px">
+            <div class="db-head"><h3>@L.T("System settings", "Paramètres système")</h3></div>
+            <div style="padding:14px 18px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+                <div class="kv"><span class="k">Default fiscal year</span><span class="v mono">FY@(DateTime.Now.Year)</span></div>
+                <div class="kv"><span class="k">Rollover threshold</span><span class="v mono">90 days before FY end</span></div>
+                <div class="kv"><span class="k">Notification channels</span><span class="v">In-portal · Email</span></div>
+                <div class="kv"><span class="k">Audit retention</span><span class="v">7 years (FRD §14)</span></div>
+                <div class="kv"><span class="k">Bilingual</span><span class="v">EN · FR</span></div>
+                <div class="kv"><span class="k">ETO integration</span><span class="v">mocked locally</span></div>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private void ChangeRole(AppUser u, string? value)
+    {
+        if (Enum.TryParse<AppRole>(value, out var role))
+        {
+            var before = u.Role;
+            u.Role = role;
+            Audit.Log("User.RoleChange", "User", u.Id, u.FullName, before.ToString(), role.ToString());
+            Toasts.Show(ToastKind.Success, $"{u.FullName}'s role updated");
+            UserCtx.NotifyChanged();
+        }
+    }
+
+    private void ChangeActive(AppUser u, bool active)
+    {
+        var before = u.Active;
+        u.Active = active;
+        Audit.Log("User.ActiveToggle", "User", u.Id, u.FullName, before.ToString(), active.ToString());
+        UserCtx.NotifyChanged();
+    }
+
+    private void LoginAs(AppUser u)
+    {
+        UserCtx.Impersonate(u.Id);
+        Audit.Log("Admin.Impersonate", "User", u.Id, u.FullName, "", "impersonating");
+        Toasts.Show(ToastKind.Success, $"Logged in as {u.FullName}");
+    }
+
+    public void Dispose()
+    {
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}

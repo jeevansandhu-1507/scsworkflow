@@ -1,0 +1,236 @@
+@page "/my-clients"
+@implements IDisposable
+@inject ActiveContextService ActiveCtx
+@inject FundingCommitmentService Fc
+@inject ClientDirectoryService ClientsSvc
+@inject ProjectService Projects
+@inject UserContextService UserCtx
+@inject ToastService Toasts
+@inject NavigationManager Nav
+@inject LocaleService L
+
+<PageTitle>SCS Portal · My Clients</PageTitle>
+
+<section class="page">
+    @if (!UserCtx.IsVendor)
+    {
+        <div class="empty-state">
+            <div class="empty-title">Vendors only</div>
+            <div class="empty-sub">My Clients is the vendor-side view of your assigned clients and projects.</div>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/")'>Back to dashboard</button>
+        </div>
+    }
+    else
+    {
+        var clients = AssignedClients().ToList();
+        var projects = AssignedProjects().ToList();
+
+        <div class="page-header">
+            <div class="page-title">
+                <div class="eyebrow">My Clients</div>
+                <h1>@L.T("Clients & projects you're assigned to", "Clients et projets assignés")</h1>
+                <p class="sub">@L.T("Derived from approved/active Funding Commitment service lines that name you.", "Dérivé des lignes de service des engagements approuvés.")</p>
+            </div>
+            <div class="stat-strip">
+                <div class="stat stat-money-main">
+                    <div class="lbl">Total clients</div>
+                    <div class="v">@clients.Count</div>
+                    <div class="sub">assigned</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Projects</div>
+                    <div class="v">@projects.Count</div>
+                    <div class="sub">assigned</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">FCs</div>
+                    <div class="v">@FcsForCurrent().Count()</div>
+                    <div class="sub">active service lines</div>
+                </div>
+                <div class="stat">
+                    <div class="lbl">Total committed</div>
+                    <div class="v">@TotalCommitted().ToString("C0")</div>
+                    <div class="sub">across all clients</div>
+                </div>
+            </div>
+        </div>
+
+        @if (clients.Count == 0 && projects.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-title">No assigned clients or projects yet</div>
+                <div class="empty-sub">Once a Case Manager assigns you to a Funding Commitment service line, the client or project will appear here.</div>
+            </div>
+        }
+        else
+        {
+            @if (clients.Count > 0)
+            {
+                <div style="margin-top:18px">
+                    <h3 style="margin:0 0 10px;font:600 14px 'Geist',sans-serif;color:var(--ink)">Clients</h3>
+                    <div class="vendor-grid">
+                        @foreach (var c in clients)
+                        {
+                            var cv = c;
+                            var fcs = ClientFcs(cv).ToList();
+                            var total = fcs.SelectMany(r => r.Services.Where(s => MatchesCurrentVendor(s.Vendor))).Sum(s => s.LineTotal);
+                            <div class="vendor-card">
+                                <div class="vendor-card-head">
+                                    <div class="vendor-av">@Initials(cv.FullName)</div>
+                                    <div style="flex:1">
+                                        <div class="vendor-name">@cv.FullName</div>
+                                        <div class="vendor-meta">
+                                            <span class="mono muted">#@cv.EtoId</span>
+                                            <span style="margin-left:6px">@cv.City</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="vendor-card-body">
+                                    <div class="vendor-row"><span class="vendor-row-k">DOB</span><span class="vendor-row-v mono">@cv.Dob</span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">Guardian</span><span class="vendor-row-v">@(string.IsNullOrEmpty(cv.Guardian) ? "—" : cv.Guardian)</span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">FCs assigned to you</span><span class="vendor-row-v"><strong>@fcs.Count</strong></span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">Committed to you</span><span class="vendor-row-v mono"><strong>@total.ToString("C2")</strong></span></div>
+                                </div>
+                                <div class="vendor-card-foot">
+                                    <button class="btn primary" @onclick="() => SetActiveAndGo(cv)">Switch & open</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (projects.Count > 0)
+            {
+                <div style="margin-top:22px">
+                    <h3 style="margin:0 0 10px;font:600 14px 'Geist',sans-serif;color:var(--ink)">Projects</h3>
+                    <div class="vendor-grid">
+                        @foreach (var p in projects)
+                        {
+                            var pv = p;
+                            var fcs = ProjectFcs(pv).ToList();
+                            var total = fcs.SelectMany(r => r.Services.Where(s => MatchesCurrentVendor(s.Vendor))).Sum(s => s.LineTotal);
+                            <div class="vendor-card">
+                                <div class="vendor-card-head">
+                                    <div class="vendor-av">@Initials(pv.Name)</div>
+                                    <div style="flex:1">
+                                        <div class="vendor-name">@pv.Name</div>
+                                        <div class="vendor-meta">
+                                            <span class="mono muted">@pv.Code</span>
+                                            <span style="margin-left:6px">@pv.Sponsor</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="vendor-card-body">
+                                    <div class="vendor-row"><span class="vendor-row-k">Manager</span><span class="vendor-row-v">@pv.ManagerName</span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">Start</span><span class="vendor-row-v mono">@pv.StartDate.ToString("MMM yyyy")</span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">FCs assigned to you</span><span class="vendor-row-v"><strong>@fcs.Count</strong></span></div>
+                                    <div class="vendor-row"><span class="vendor-row-k">Committed to you</span><span class="vendor-row-v mono"><strong>@total.ToString("C2")</strong></span></div>
+                                </div>
+                                <div class="vendor-card-foot">
+                                    <button class="btn primary" @onclick="() => SetActiveAndGoProject(pv)">Switch & open</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    }
+</section>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Fc.OnChange += R;
+        ActiveCtx.OnChange += R;
+        UserCtx.OnChange += R;
+        L.OnChange += R;
+    }
+
+    private void R() => InvokeAsync(StateHasChanged);
+
+    private string ResolveCurrentVendorName()
+    {
+        var u = UserCtx.Effective;
+        if (u.LinkedVendorId == "v-sp-01") return "Maple Care Inc.";
+        if (u.LinkedVendorId == "v-isw-01") return "Ima Worker";
+        return u.FullName;
+    }
+
+    private bool MatchesCurrentVendor(string vendor)
+    {
+        var candidates = new List<string> { UserCtx.Effective.FullName, ResolveCurrentVendorName() };
+        return candidates.Any(c => string.Equals(c, vendor, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IEnumerable<FundingCommitment> FcsForCurrent()
+    {
+        var vendor = ResolveCurrentVendorName();
+        return Fc.Rows.Where(r => r.Status is CommitmentStatus.Approved or CommitmentStatus.Active or CommitmentStatus.Pending)
+                      .Where(r => r.Services.Any(s => MatchesCurrentVendor(s.Vendor)));
+    }
+
+    private IEnumerable<Client> AssignedClients()
+    {
+        var clientIds = FcsForCurrent()
+            .Where(r => r.Association == AssociationType.Client)
+            .Select(r => r.ClientId)
+            .Distinct()
+            .ToHashSet();
+        return ClientsSvc.Clients.Where(c => clientIds.Contains(c.EtoId)).OrderBy(c => c.FullName);
+    }
+
+    private IEnumerable<Project> AssignedProjects()
+    {
+        var projectIds = FcsForCurrent()
+            .Where(r => r.Association == AssociationType.Project)
+            .Select(r => r.LinkedEntityId)
+            .Distinct()
+            .ToHashSet();
+        return Projects.Projects.Where(p => projectIds.Contains(p.Id)).OrderBy(p => p.Name);
+    }
+
+    private IEnumerable<FundingCommitment> ClientFcs(Client c) =>
+        FcsForCurrent().Where(r => r.Association == AssociationType.Client && r.ClientId == c.EtoId);
+
+    private IEnumerable<FundingCommitment> ProjectFcs(Project p) =>
+        FcsForCurrent().Where(r => r.Association == AssociationType.Project && r.LinkedEntityId == p.Id);
+
+    private decimal TotalCommitted() =>
+        FcsForCurrent().SelectMany(r => r.Services.Where(s => MatchesCurrentVendor(s.Vendor))).Sum(s => s.LineTotal);
+
+    private void SetActiveAndGo(Client c)
+    {
+        if (ActiveCtx.TrySetClient(c.EtoId, out var msg))
+        {
+            Toasts.Show(ToastKind.Success, msg);
+            Nav.NavigateTo("/profile");
+        }
+    }
+
+    private void SetActiveAndGoProject(Project p)
+    {
+        if (ActiveCtx.TrySetProject(p.Id, out var msg))
+        {
+            Toasts.Show(ToastKind.Success, msg);
+            Nav.NavigateTo("/profile");
+        }
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length == 1) return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+        return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpper();
+    }
+
+    public void Dispose()
+    {
+        Fc.OnChange -= R;
+        ActiveCtx.OnChange -= R;
+        UserCtx.OnChange -= R;
+        L.OnChange -= R;
+    }
+}
