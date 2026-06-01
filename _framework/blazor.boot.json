@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "SCSPortal",
   "resources": {
-    "hash": "sha256-JPJE9b2z1pOEmSvszMJZN2sodGp3m8d286TGLxV91I4=",
+    "hash": "sha256-FebbwY4RDMePO3dvIia/PKvVqrxPD/mAjI1sn1dAOGc=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-sn/g61GjVPhViOYQDkq1OMlk0eyS9r2Hi0qgU2o0HIU="
     },
@@ -40,7 +40,7 @@
       "System.Memory.wasm": "sha256-RgJ5T/q7g2ZtzYuhbHrT7F+ZOfxSHvC+xts4JjrspUM=",
       "System.Net.Http.wasm": "sha256-vayM7GFNDVHhyBXKLWoak3qxJ3oxbEdKzYkmTBo65UA=",
       "System.Net.Primitives.wasm": "sha256-VmYT04cIe+6fcjASxcGAzBL56WW1J152FpK9sTHymO8=",
-      "System.Private.Uri.wasm": "sha256-GlxTrqZTh6z7tXKJDN3WtzG1UoxYBMAdQXdMjpsOJ5Y=",
+      "System.Private.Uri.wasm": "sha256-6nUBr2ZTmQ7iZbkF/Td/WxLNwyokSq256KsCE20wPvo=",
       "System.Runtime.InteropServices.JavaScript.wasm": "sha256-KiJxa6wkvatNKur6q4ZSOVO3O04kh6HlQ0c7yyKnhrM=",
       "System.Runtime.wasm": "sha256-5jHAp7BraxEs+Br2bKWzxQHZhcLRkw957hAgz/4nxnE=",
       "System.Text.Encodings.Web.wasm": "sha256-UGsgUZV3Er8ms7Aw6V+HTiVBhBRFgOzwLTK1Bm+nTGk=",
@@ -48,7 +48,7 @@
       "System.Text.RegularExpressions.wasm": "sha256-iyKa6gZHB4OPS8L7sBquG6FfpvGKxCAIX1FNa1ts8TI=",
       "System.Threading.wasm": "sha256-xxupzv/Rv8t0XxpO0lAkJYWV75cxE9ycmHg6WOI09Pg=",
       "System.Private.CoreLib.wasm": "sha256-l0E7hGsdgMdaBhhshOjA7yJL+voNSZxMXQY8KMwNR0o=",
-      "SCSPortal.wasm": "sha256-GtLe8uiB32SJdw7n3hkqZ24vg6DSL8G9DJmS1J64jQw="
+      "SCSPortal.wasm": "sha256-F2B5vWMbWThyhM7JVTmUQEedH7o9Q/RxRzGsjvJ5LBQ="
     }
   },
   "cacheBootResources": true,
