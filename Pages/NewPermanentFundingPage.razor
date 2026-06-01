@@ -408,34 +408,37 @@
                 _draft.MinistryApprovedCMAllocationAmount = csnAmount > 0 ? csnAmount : csnServiceSum;
             }
 
-            if (!sourceFc.MainFunder.Equals("MCCSS", StringComparison.OrdinalIgnoreCase))
+            if (!sourceFc.FundingType.Equals("None of the above", StringComparison.OrdinalIgnoreCase))
             {
-                _draft.AllocationTypes.Add("Passport");
-                sourceFc.PlanAmounts.TryGetValue(sourceFc.MainFunder, out var passportAmt);
-                if (passportAmt == 0)
+                if (!sourceFc.MainFunder.Equals("MCCSS", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out var sAmt))
-                        passportAmt = sAmt;
-                    else if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pfAmt))
-                        passportAmt = pfAmt;
+                    _draft.AllocationTypes.Add("Passport");
+                    sourceFc.PlanAmounts.TryGetValue(sourceFc.MainFunder, out var passportAmt);
+                    if (passportAmt == 0)
+                    {
+                        if (sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out var sAmt))
+                            passportAmt = sAmt;
+                        else if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pfAmt))
+                            passportAmt = pfAmt;
+                    }
+                    _draft.ApprovedPassportAllocation = passportAmt > 0 ? passportAmt : sourceFc.TotalPlan;
                 }
-                _draft.ApprovedPassportAllocation = passportAmt > 0 ? passportAmt : sourceFc.TotalPlan;
-            }
 
-            if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pAmt))
-            {
-                if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
-                _draft.ApprovedPassportAllocation = pAmt;
-            }
-            if (sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out var ssahAmt))
-            {
-                if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
-                _draft.ApprovedPassportAllocation = ssahAmt;
-            }
-            if (sourceFc.PlanAmounts.TryGetValue("Historical Respite", out var hAmt))
-            {
-                if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
-                _draft.HistoricalRespiteAllocation = hAmt;
+                if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pAmt))
+                {
+                    if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
+                    _draft.ApprovedPassportAllocation = pAmt;
+                }
+                if (sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out var ssahAmt))
+                {
+                    if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
+                    _draft.ApprovedPassportAllocation = ssahAmt;
+                }
+                if (sourceFc.PlanAmounts.TryGetValue("Historical Respite", out var hAmt))
+                {
+                    if (!_draft.AllocationTypes.Contains("Passport")) _draft.AllocationTypes.Add("Passport");
+                    _draft.HistoricalRespiteAllocation = hAmt;
+                }
             }
         }
         else if (Context.HasActive)
