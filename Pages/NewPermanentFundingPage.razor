@@ -408,15 +408,16 @@
                 _draft.MinistryApprovedCMAllocationAmount = csnAmount > 0 ? csnAmount : csnServiceSum;
             }
 
-            if (sourceFc.MainFunder.StartsWith("Passport", StringComparison.OrdinalIgnoreCase)
-                || sourceFc.MainFunder.Equals("SSAH", StringComparison.OrdinalIgnoreCase)
-                || sourceFc.MainFunder.Contains("Services at Home", StringComparison.OrdinalIgnoreCase))
+            if (!sourceFc.MainFunder.Equals("MCCSS", StringComparison.OrdinalIgnoreCase))
             {
                 _draft.AllocationTypes.Add("Passport");
                 sourceFc.PlanAmounts.TryGetValue(sourceFc.MainFunder, out var passportAmt);
                 if (passportAmt == 0)
                 {
-                    sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out passportAmt);
+                    if (sourceFc.PlanAmounts.TryGetValue("Special Services at Home (SSAH)", out var sAmt))
+                        passportAmt = sAmt;
+                    else if (sourceFc.PlanAmounts.TryGetValue("Passport Funding", out var pfAmt))
+                        passportAmt = pfAmt;
                 }
                 _draft.ApprovedPassportAllocation = passportAmt > 0 ? passportAmt : sourceFc.TotalPlan;
             }
