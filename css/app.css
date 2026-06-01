@@ -922,6 +922,8 @@ input.svc-input{cursor:text}
 .full-overlay.open{opacity:1;pointer-events:auto}
 .full-view{
   position:fixed;top:0;right:0;bottom:0;
+  height:100vh;
+  max-height:100vh;
   width:min(880px, 96vw);
   background:var(--bg);
   border-left:1px solid var(--border);
@@ -969,7 +971,7 @@ input.svc-input{cursor:text}
 .fv-tabs button.active .ct{background:var(--brand-100);color:var(--brand-800)}
 
 .fv-body{
-  flex:1;overflow-y:auto;padding:22px 24px 60px;
+  flex:1;min-height:0;overflow-y:auto;padding:22px 24px 60px;
   display:flex;flex-direction:column;gap:18px;
 }
 .fv-sec{
@@ -1080,6 +1082,8 @@ input.svc-input{cursor:text}
 .bulk-overlay.open{opacity:1;pointer-events:auto}
 .bulk-drawer{
   position:fixed;top:0;right:0;bottom:0;
+  height:100vh;
+  max-height:100vh;
   width:min(460px, 92vw);
   background:linear-gradient(180deg, var(--surface), var(--surface-2));
   border-left:1px solid var(--border);
@@ -1111,7 +1115,7 @@ input.svc-input{cursor:text}
 }
 .bd-hint svg{flex-shrink:0;opacity:.7}
 .bd-body{
-  flex:1;overflow-y:auto;
+  flex:1;min-height:0;overflow-y:auto;
   padding:8px 20px 20px;display:flex;flex-direction:column;gap:6px;
 }
 .bd-field{
