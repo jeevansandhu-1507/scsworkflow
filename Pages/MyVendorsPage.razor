@@ -176,12 +176,12 @@
 
     private void BookShift(Vendor v)
     {
-        Nav.NavigateTo($"/scheduling?vendor={Uri.EscapeDataString(v.Name)}");
+        Nav.NavigateTo($"scheduling?vendor={Uri.EscapeDataString(v.Name)}");
     }
 
     private void RaiseInvoice(Vendor v)
     {
-        Nav.NavigateTo($"/invoices?vendor={Uri.EscapeDataString(v.Name)}");
+        Nav.NavigateTo($"invoices?vendor={Uri.EscapeDataString(v.Name)}");
     }
 
     private static string VendorInitials(string name)

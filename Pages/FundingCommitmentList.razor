@@ -24,7 +24,7 @@
                 @if (UserCtx.IsCaseManager || UserCtx.IsAdmin || UserCtx.IsFinance)
                 {
                     <button class="btn primary fcl-add"
-                            @onclick='() => Nav.NavigateTo("/funding-commitments/new")'>
+                            @onclick='() => Nav.NavigateTo("funding-commitments/new")'>
                         ADD FUNDING COMMITMENT
                     </button>
                 }

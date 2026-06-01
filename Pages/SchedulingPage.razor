@@ -19,7 +19,7 @@
                 Service Provider organizations don't use the shift calendar — they bill the supports they deliver
                 directly via the manual invoice builder.
             </div>
-            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/invoices")'>Go to invoicing</button>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("invoices")'>Go to invoicing</button>
         </div>
     }
     else
@@ -76,7 +76,7 @@
         }
         @if (submittedCount > 0)
         {
-            <button class="btn primary" @onclick='() => Nav.NavigateTo("/invoices")'>
+            <button class="btn primary" @onclick='() => Nav.NavigateTo("invoices")'>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
                 Generate invoice (@submittedCount submitted shift@(submittedCount == 1 ? "" : "s"))
             </button>

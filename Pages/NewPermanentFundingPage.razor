@@ -18,7 +18,7 @@
         <div class="empty-state">
             <div class="empty-title">Finance only</div>
             <div class="empty-sub">Permanent Funding records can only be created by Finance or Admin roles.</div>
-            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/permanent-funding")'>Back</button>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("permanent-funding")'>Back</button>
         </div>
     }
     else
@@ -340,7 +340,7 @@
             if (sourceFc.Status != CommitmentStatus.Ministry && sourceFc.Status != CommitmentStatus.Csn)
             {
                 Toasts.Show(ToastKind.Warning, "Funding Commitment must be in Pending Ministry Approval or CSN Youth status to convert.");
-                Nav.NavigateTo("/permanent-funding");
+                Nav.NavigateTo("permanent-funding");
                 return;
             }
 
@@ -349,7 +349,7 @@
             if (client != null && !client.FundingStatus.Equals("Permanent", StringComparison.OrdinalIgnoreCase) && !client.FundingStatus.Equals("Pending Ministry Approval", StringComparison.OrdinalIgnoreCase))
             {
                 Toasts.Show(ToastKind.Warning, "Client profile Funding Status must be Permanent or Pending Ministry Approval to convert.");
-                Nav.NavigateTo("/permanent-funding");
+                Nav.NavigateTo("permanent-funding");
                 return;
             }
 
@@ -553,7 +553,7 @@
         _draft.FundingStatusLabel = "Draft";
         var saved = Pf.Create(_draft, submitForApproval: false);
         Toasts.Show(ToastKind.Success, $"Draft PF {saved.Reference} saved");
-        Nav.NavigateTo($"/permanent-funding/{saved.Id}");
+        Nav.NavigateTo($"permanent-funding/{saved.Id}");
     }
 
     private void SubmitForApproval()
@@ -565,10 +565,10 @@
         }
         var saved = Pf.Create(_draft, submitForApproval: true);
         Toasts.Show(ToastKind.Success, $"PF {saved.Reference} submitted for Ministry approval");
-        Nav.NavigateTo($"/permanent-funding/{saved.Id}");
+        Nav.NavigateTo($"permanent-funding/{saved.Id}");
     }
 
-    private void Cancel() => Nav.NavigateTo("/permanent-funding");
+    private void Cancel() => Nav.NavigateTo("permanent-funding");
 
     private void SyncZoho()
     {

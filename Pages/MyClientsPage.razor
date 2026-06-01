@@ -17,7 +17,7 @@
         <div class="empty-state">
             <div class="empty-title">Vendors only</div>
             <div class="empty-sub">My Clients is the vendor-side view of your assigned clients and projects.</div>
-            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/")'>Back to dashboard</button>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("")'>Back to dashboard</button>
         </div>
     }
     else
@@ -205,7 +205,7 @@
         if (ActiveCtx.TrySetClient(c.EtoId, out var msg))
         {
             Toasts.Show(ToastKind.Success, msg);
-            Nav.NavigateTo("/profile");
+            Nav.NavigateTo("profile");
         }
     }
 
@@ -214,7 +214,7 @@
         if (ActiveCtx.TrySetProject(p.Id, out var msg))
         {
             Toasts.Show(ToastKind.Success, msg);
-            Nav.NavigateTo("/profile");
+            Nav.NavigateTo("profile");
         }
     }
 

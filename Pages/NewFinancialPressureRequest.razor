@@ -16,14 +16,14 @@
         <div class="empty-state">
             <div class="empty-title">SP-only form</div>
             <div class="empty-sub">Only Service Providers (SP) submit financial pressure requests. Use the list view to review submissions.</div>
-            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/financial-pressure")'>Back to list</button>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("financial-pressure")'>Back to list</button>
         </div>
     }
     else
     {
         <div class="fp-form">
             <header class="fp-head">
-                <button class="btn ghost" style="margin-right:10px" @onclick='() => Nav.NavigateTo("/financial-pressure")'>
+                <button class="btn ghost" style="margin-right:10px" @onclick='() => Nav.NavigateTo("financial-pressure")'>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6" /></svg>
                     Back to list
                 </button>
@@ -222,7 +222,7 @@
 
             <footer class="pf-edit-foot">
                 <div style="flex:1"></div>
-                <button class="btn ghost" @onclick='() => Nav.NavigateTo("/financial-pressure")'>CANCEL</button>
+                <button class="btn ghost" @onclick='() => Nav.NavigateTo("financial-pressure")'>CANCEL</button>
                 <button class="btn" @onclick="SaveDraft">SAVE DRAFT</button>
                 <button class="btn primary" @onclick="SubmitRequest" disabled="@(!CanSubmit())">✓ SUBMIT REQUEST</button>
             </footer>
@@ -357,7 +357,7 @@
         Fp.Submit(_form.RequestorName, _form.FcId, assoc, _form.ClientName,
                   TotalCost, _form.SupportType, _form.NeedDescription, prio);
         Toasts.Show(ToastKind.Success, $"Request submitted · {TotalCost:C2} for {_form.ClientName}");
-        Nav.NavigateTo("/financial-pressure");
+        Nav.NavigateTo("financial-pressure");
     }
 
     public void Dispose()

@@ -9,7 +9,7 @@
 
 <header class="topbar">
     <div class="breadcrumbs">
-        <span @onclick='() => Nav.NavigateTo("/")' style="cursor:pointer">SCS Portal</span>
+        <span @onclick='() => Nav.NavigateTo("")' style="cursor:pointer">SCS Portal</span>
         <span class="sep">›</span>
         <strong>@PageTitle()</strong>
     </div>
@@ -116,7 +116,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="m6 9 6 6 6-6" /></svg>
         </button>
 
-        <button class="icon-btn" @onclick='() => Nav.NavigateTo("/notifications")'
+        <button class="icon-btn" @onclick='() => Nav.NavigateTo("notifications")'
                 title="Notifications" aria-label="@($"Open notifications ({Notify.UnreadCountForCurrent()} unread)")">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
@@ -182,7 +182,10 @@
 
     private string PageTitle()
     {
-        var path = new Uri(Nav.Uri).AbsolutePath.Trim('/');
+        var relative = Nav.ToBaseRelativePath(Nav.Uri);
+        var qIdx = relative.IndexOf('?');
+        if (qIdx >= 0) relative = relative.Substring(0, qIdx);
+        var path = relative.Trim('/');
         return path switch
         {
             "" => L.Dashboard,

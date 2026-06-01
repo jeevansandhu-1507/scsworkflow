@@ -102,7 +102,7 @@
                         }
                         @if (vendors.Count > 4)
                         {
-                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/my-vendors")'>View all @vendors.Count vendors →</button>
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("my-vendors")'>View all @vendors.Count vendors →</button>
                         }
                     }
                 </div>
@@ -124,7 +124,7 @@
                         @foreach (var r in fcs.OrderByDescending(x => x.Date).Take(4))
                         {
                             var st = StatusInfo.For(r.Status);
-                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("funding-commitments")'>
                                 <div class="profile-item-body">
                                     <div class="profile-item-title mono">@r.CommitId · @r.FiscalYear</div>
                                     <div class="profile-item-sub">
@@ -141,7 +141,7 @@
                         </div>
                         @if (fcs.Count > 4)
                         {
-                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/funding-commitments")'>View all @fcs.Count FCs →</button>
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("funding-commitments")'>View all @fcs.Count FCs →</button>
                         }
                     }
                 </div>
@@ -162,7 +162,7 @@
                     {
                         @foreach (var i in invs.OrderByDescending(x => x.Date).Take(4))
                         {
-                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("/invoices")'>
+                            <div class="profile-item" style="cursor:pointer" @onclick='() => Nav.NavigateTo("invoices")'>
                                 <div class="profile-item-body">
                                     <div class="profile-item-title mono">@i.Number</div>
                                     <div class="profile-item-sub">
@@ -175,7 +175,7 @@
                         }
                         @if (invs.Count > 4)
                         {
-                            <button class="profile-link" @onclick='() => Nav.NavigateTo("/invoices")'>View all @invs.Count invoices →</button>
+                            <button class="profile-link" @onclick='() => Nav.NavigateTo("invoices")'>View all @invs.Count invoices →</button>
                         }
                     }
                 </div>
@@ -198,7 +198,7 @@
                         {
                             @foreach (var pf in pfs.Take(4))
                             {
-                                <div class="profile-item" style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"/permanent-funding/{pf.Id}"))">
+                                <div class="profile-item" style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"permanent-funding/{pf.Id}"))">
                                     <div class="profile-item-body">
                                         <div class="profile-item-title mono">@pf.Reference</div>
                                         <div class="profile-item-sub">@pf.Program · @pf.FiscalYear · @pf.FundingStatusLabel</div>
@@ -208,7 +208,7 @@
                             }
                             @if (pfs.Count > 4)
                             {
-                                <button class="profile-link" @onclick='() => Nav.NavigateTo("/permanent-funding")'>View all @pfs.Count PFs →</button>
+                                <button class="profile-link" @onclick='() => Nav.NavigateTo("permanent-funding")'>View all @pfs.Count PFs →</button>
                             }
                         }
                     </div>

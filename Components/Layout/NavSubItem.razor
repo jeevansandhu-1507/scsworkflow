@@ -8,10 +8,11 @@
 
     private bool IsActive()
     {
-        var uri = new Uri(Nav.Uri);
-        var path = uri.AbsolutePath.Trim('/');
-        return path == Href;
+        var relative = Nav.ToBaseRelativePath(Nav.Uri);
+        var qIdx = relative.IndexOf('?');
+        if (qIdx >= 0) relative = relative.Substring(0, qIdx);
+        return relative.Trim('/') == Href.Trim('/');
     }
 
-    private void Go() => Nav.NavigateTo("/" + Href);
+    private void Go() => Nav.NavigateTo("" + Href);
 }

@@ -18,7 +18,7 @@
         <div class="empty-state">
             <div class="empty-title">No active client or project selected</div>
             <div class="empty-sub">Use <strong>Set Active Client</strong> in the top bar before creating a funding commitment.</div>
-            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("/funding-commitments")'>Back</button>
+            <button class="btn primary" style="margin-top:14px" @onclick='() => Nav.NavigateTo("funding-commitments")'>Back</button>
         </div>
     }
     else
@@ -1041,7 +1041,7 @@
 
     private void Exit()
     {
-        Nav.NavigateTo("/funding-commitments");
+        Nav.NavigateTo("funding-commitments");
     }
 
     private void PrepareDraftForSave()
@@ -1075,7 +1075,7 @@
         PrepareDraftForSave();
         var id = Fc.CreateFromWizard(_draft, submitOnFinish: false);
         Toasts.Show(ToastKind.Success, $"Draft FC {id} saved");
-        Nav.NavigateTo("/funding-commitments");
+        Nav.NavigateTo("funding-commitments");
     }
 
     private void Submit()
@@ -1083,7 +1083,7 @@
         PrepareDraftForSave();
         var id = Fc.CreateFromWizard(_draft, submitOnFinish: _draft.SubmitOnFinish);
         Toasts.Show(ToastKind.Success, _draft.SubmitOnFinish ? $"FC {id} submitted for Special Approval" : $"Draft FC {id} saved");
-        Nav.NavigateTo("/funding-commitments");
+        Nav.NavigateTo("funding-commitments");
     }
 
     public void Dispose()

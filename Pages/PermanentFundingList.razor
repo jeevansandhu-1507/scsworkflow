@@ -31,7 +31,7 @@
                 <div class="v">@Pf.Records.Count(r => r.Association == AssociationType.Project)</div>
                 <div class="sub">linked to projects</div>
             </div>
-            <div class="stat" @onclick='() => Nav.NavigateTo("/rollover")'>
+            <div class="stat" @onclick='() => Nav.NavigateTo("rollover")'>
                 <div class="lbl">Rollover-eligible</div>
                 <div class="v">@Pf.EligibleForRollover().Count()</div>
                 <div class="sub">go to queue →</div>
@@ -73,7 +73,7 @@
                     var fcs = Fc.Rows.Where(r => r.PermanentFundingId == pf.Id).ToList();
                     var committed = fcs.Sum(r => r.Total);
                     var remaining = pf.BudgetAmount - committed;
-                    <tr @onclick='() => Nav.NavigateTo("/permanent-funding/" + pf.Id)'>
+                    <tr @onclick='() => Nav.NavigateTo("permanent-funding/" + pf.Id)'>
                         <td class="mono">@pf.Reference</td>
                         <td>
                             <span class="assoc-pill @(pf.Association == AssociationType.Client ? "client" : "project")">

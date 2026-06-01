@@ -176,7 +176,7 @@
         Toasts.Show(ToastKind.Success, $"FC {commitId} submitted for Special Approval");
     }
 
-    private void OpenFcs() => Nav.NavigateTo("/funding-commitments");
+    private void OpenFcs() => Nav.NavigateTo("funding-commitments");
 
     private static string Money(decimal n) => "$" + n.ToString("N2");
 

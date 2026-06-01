@@ -24,22 +24,22 @@
             <p class="sub">@RoleInfo.Label(UserCtx.Effective.Role) · @L.T("Choose a workspace to get started.", "Choisissez un espace de travail.")</p>
         </div>
         <div class="stat-strip">
-            <div class="stat stat-money-main" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+            <div class="stat stat-money-main" @onclick='() => Nav.NavigateTo("funding-commitments")'>
                 <div class="lbl">@L.FundingCommitments</div>
                 <div class="v">@Fc.VisibleToCurrent().Count()</div>
                 <div class="sub">@DraftCount() drafts · @PendingCount() pending</div>
             </div>
-            <div class="stat" @onclick='() => Nav.NavigateTo("/permanent-funding")'>
+            <div class="stat" @onclick='() => Nav.NavigateTo("permanent-funding")'>
                 <div class="lbl">@L.PermanentFunding</div>
                 <div class="v">@Pf.Records.Count</div>
                 <div class="sub">@Pf.EligibleForRollover().Count() rollover-eligible</div>
             </div>
-            <div class="stat" @onclick='() => Nav.NavigateTo("/rollover")'>
+            <div class="stat" @onclick='() => Nav.NavigateTo("rollover")'>
                 <div class="lbl">@L.Rollover</div>
                 <div class="v">@DraftCount()</div>
                 <div class="sub">queue ready for review</div>
             </div>
-            <div class="stat" @onclick='() => Nav.NavigateTo("/notifications")'>
+            <div class="stat" @onclick='() => Nav.NavigateTo("notifications")'>
                 <div class="lbl">@L.Notifications</div>
                 <div class="v">@Notify.UnreadCountForCurrent()</div>
                 <div class="sub">unread</div>
@@ -49,7 +49,7 @@
 
     <div class="dashboard-grid">
         <div class="db-card">
-            <div class="db-head"><h3>@L.T("Recent activity", "Activité récente")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("/audit")'>View all →</span></div>
+            <div class="db-head"><h3>@L.T("Recent activity", "Activité récente")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("audit")'>View all →</span></div>
             <div class="db-list">
                 @foreach (var a in Audit.Entries.Take(7))
                 {
@@ -66,7 +66,7 @@
         </div>
 
         <div class="db-card">
-            <div class="db-head"><h3>@L.T("Inbox", "Boîte de réception")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("/notifications")'>View all →</span></div>
+            <div class="db-head"><h3>@L.T("Inbox", "Boîte de réception")</h3><span class="db-link" @onclick='() => Nav.NavigateTo("notifications")'>View all →</span></div>
             <div class="db-list">
                 @foreach (var n in Notify.ForCurrent().Take(6))
                 {
@@ -86,19 +86,19 @@
             <div class="db-card">
                 <div class="db-head"><h3>@L.T("Open work", "Tâches ouvertes")</h3></div>
                 <div class="db-quick">
-                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/funding-commitments")'>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("funding-commitments")'>
                         <div class="db-q-n">@Fc.Rows.Count(r => r.Status == CommitmentStatus.Draft)</div>
                         <div>Draft FCs awaiting review</div>
                     </button>
-                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/financial-pressure")'>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("financial-pressure")'>
                         <div class="db-q-n">@Fp.Requests.Count(r => r.Status is FpStatus.Submitted or FpStatus.CmReview or FpStatus.FinanceReview)</div>
                         <div>Financial Pressure requests</div>
                     </button>
-                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/invoices")'>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("invoices")'>
                         <div class="db-q-n">@Inv.Invoices.Count(i => i.Status == InvoiceStatus.Submitted)</div>
                         <div>Invoices awaiting approval</div>
                     </button>
-                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("/scheduling")'>
+                    <button class="db-quick-btn" @onclick='() => Nav.NavigateTo("scheduling")'>
                         <div class="db-q-n">@Sched.Shifts.Count(s => s.Status == ShiftStatus.Submitted)</div>
                         <div>Submitted shifts</div>
                     </button>
