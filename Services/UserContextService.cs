@@ -62,8 +62,24 @@ public class UserContextService
 
 public class LocaleService
 {
-    public AppLocale Locale { get; private set; } = AppLocale.En;
+    public static AppLocale CurrentLocale { get; set; } = AppLocale.En;
+
+    private AppLocale _locale = AppLocale.En;
+    public AppLocale Locale
+    {
+        get => _locale;
+        private set
+        {
+            _locale = value;
+            CurrentLocale = value;
+        }
+    }
     public event Action? OnChange;
+
+    public LocaleService()
+    {
+        Locale = AppLocale.En;
+    }
 
     public void Toggle()
     {

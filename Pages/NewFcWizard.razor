@@ -192,17 +192,35 @@
             </div>
         }
 
-        <div class="wiz-row">
-            <label class="wiz-q">What is the residential placement type? <span class="req">*</span></label>
-            @foreach (var p in GetAllowedPlacements())
-            {
-                var pv = p;
-                <label class="wiz-radio">
-                    <input type="radio" name="place" checked="@(_draft.ResidentialPlacement == pv)" @onchange="() => { _draft.ResidentialPlacement = pv; ResolveAllGl(); }" />
-                    <span>@p</span>
-                </label>
-            }
-        </div>
+        @if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+        {
+            <div class="wiz-row">
+                <label class="wiz-q">Where does the person currently live? <span class="req">*</span></label>
+                @foreach (var p in GetAllowedPlacements())
+                {
+                    var pv = p;
+                    <label class="wiz-radio">
+                        <input type="radio" name="place" checked="@(_draft.ResidentialPlacement == pv)" @onchange="() => { _draft.ResidentialPlacement = pv; ResolveAllGl(); }" />
+                        <span>@p</span>
+                    </label>
+                }
+            </div>
+        }
+        else if (_draft.FundingTypeChoice == "CSN Youth")
+        {
+            <div class="wiz-row">
+                <label class="wiz-q">Living arrangement (for information purposes only) <span class="req">*</span></label>
+                <div class="wiz-hint" style="margin-bottom:8px">This field is informational only and does not impact funding, approvals, or calculations.</div>
+                @foreach (var la in Catalog.CsnLivingArrangements)
+                {
+                    var lav = la;
+                    <label class="wiz-radio">
+                        <input type="radio" name="csn_la" checked="@(_draft.CsnLivingArrangement == lav)" @onchange="() => { _draft.CsnLivingArrangement = lav; }" />
+                        <span>@la</span>
+                    </label>
+                }
+            </div>
+        }
 
         <div class="wiz-row">
             <label class="wiz-q">What is the start and end date of this plan? <span class="req">*</span></label>
@@ -238,7 +256,7 @@
     private RenderFragment StepFunderSelection() => @<text>
         <div class="wiz-row">
             <label class="wiz-q">Please select the plan's main funder. <span class="req">*</span></label>
-            @foreach (var mf in Catalog.MainFunderChoices)
+            @foreach (var mf in GetAllowedMainFunders())
             {
                 var mfv = mf;
                 var isForced = IsFunderSelectionForced();
@@ -250,7 +268,7 @@
             }
         </div>
 
-        @if (!string.IsNullOrEmpty(_draft.MainFunder) && !IsFunderSelectionForced())
+        @if (!string.IsNullOrEmpty(_draft.MainFunder))
         {
             <div class="wiz-row">
                 <label class="wiz-q">Please select additional funders.</label>
@@ -262,7 +280,7 @@
                     }
                 </div>
                 <div class="wiz-chip-tray" style="margin-top:8px">
-                    @foreach (var af in Catalog.AddlFunderChoices.Where(x => !_draft.AdditionalFunders.Contains(x) && x != _draft.MainFunder))
+                    @foreach (var af in GetAllowedAdditionalFunders().Where(x => !_draft.AdditionalFunders.Contains(x) && x != _draft.MainFunder))
                     {
                         var afv = af;
                         <button class="wiz-chip-pick" @onclick="() => _draft.AdditionalFunders.Add(afv)">+ @af</button>
@@ -284,15 +302,26 @@
         AssignAmountToVendor = false;
     }
 
+    private IEnumerable<string> GetAllowedMainFunders()
+    {
+        var isAdmin = UserCtx?.IsAdmin == true;
+        return Catalog.MainFunderChoices.Where(f => isAdmin || (f != "SSAH" && f != "CHEO" && f != "ODSP"));
+    }
+
+    private IEnumerable<string> GetAllowedAdditionalFunders()
+    {
+        return Catalog.AddlFunderChoices;
+    }
+
     private IEnumerable<string> GetAllowedPlacements()
     {
-        if (_draft.FundingTypeChoice == "In-Year MYSLP Residential")
+        if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
         {
-            return Catalog.ResidentialPlacements.Where(p => p != "Resides with Caregiver/Guardian");
+            return Catalog.ResidentialPlacements.Where(p => p != "Lives with caregiver or guardian");
         }
         if (_draft.FundingTypeChoice == "CSN Youth")
         {
-            return Catalog.ResidentialPlacements.Where(p => p == "Resides with Caregiver/Guardian");
+            return Catalog.ResidentialPlacements.Where(p => p == "Lives with caregiver or guardian");
         }
         return Catalog.ResidentialPlacements;
     }
@@ -315,10 +344,7 @@
             _draft.McsssTypes = new List<string> { "MCCSS Fiscal Residential Funding Allocation" };
             _draft.McsssAmounts = new Dictionary<string, decimal> { ["MCCSS Fiscal Residential Funding Allocation"] = 0 };
             _draft.McsssRestrictions = new Dictionary<string, string> { ["MCCSS Fiscal Residential Funding Allocation"] = "Restricted" };
-            if (_draft.ResidentialPlacement == "Resides with Caregiver/Guardian")
-            {
-                _draft.ResidentialPlacement = "";
-            }
+            _draft.CsnLivingArrangement = "";
         }
         else if (choice == "Regional / TPR transfer")
         {
@@ -328,6 +354,7 @@
             _draft.McsssTypes = new List<string> { "MCCSS Fiscal Residential Funding Allocation" };
             _draft.McsssAmounts = new Dictionary<string, decimal> { ["MCCSS Fiscal Residential Funding Allocation"] = 0 };
             _draft.McsssRestrictions = new Dictionary<string, string> { ["MCCSS Fiscal Residential Funding Allocation"] = "Restricted" };
+            _draft.CsnLivingArrangement = "";
         }
         else if (choice == "CSN Youth")
         {
@@ -337,7 +364,7 @@
             _draft.McsssTypes = new List<string> { "Temporary Funding Allocation - Complex Special Needs (CSN)" };
             _draft.McsssAmounts = new Dictionary<string, decimal> { ["Temporary Funding Allocation - Complex Special Needs (CSN)"] = 0 };
             _draft.McsssRestrictions = new Dictionary<string, string> { ["Temporary Funding Allocation - Complex Special Needs (CSN)"] = "Restricted" };
-            _draft.ResidentialPlacement = "Resides with Caregiver/Guardian";
+            _draft.ResidentialPlacement = "";
         }
         else
         {
@@ -347,6 +374,8 @@
             _draft.McsssTypes.Clear();
             _draft.McsssAmounts.Clear();
             _draft.McsssRestrictions.Clear();
+            _draft.ResidentialPlacement = "";
+            _draft.CsnLivingArrangement = "";
         }
         ResolveAllGl();
     }
@@ -733,7 +762,14 @@
             <div class="rev-card">
                 <div class="rev-h">1 · Funding & client situation</div>
                 <div class="rev-k"><span>Type</span><span>@_draft.FundingTypeChoice</span></div>
-                <div class="rev-k"><span>Placement</span><span>@_draft.ResidentialPlacement</span></div>
+                @if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+                {
+                    <div class="rev-k"><span>Placement</span><span>@_draft.ResidentialPlacement</span></div>
+                }
+                else if (_draft.FundingTypeChoice == "CSN Youth")
+                {
+                    <div class="rev-k"><span>Living arrangement</span><span>@_draft.CsnLivingArrangement</span></div>
+                }
                 <div class="rev-k"><span>Plan period</span><span>@(_draft.PlanStart?.ToString("yyyy-MM-dd") ?? "—") → @(_draft.PlanEnd?.ToString("yyyy-MM-dd") ?? "—")</span></div>
                 <div class="rev-k"><span>Situation</span><span class="muted">@(string.IsNullOrEmpty(_draft.CurrentSituationOutcome) ? "—" : _draft.CurrentSituationOutcome)</span></div>
                 <div class="rev-k"><span>Impact / alternatives</span><span class="muted">@(string.IsNullOrEmpty(_draft.ImpactAndAlternatives) ? "—" : _draft.ImpactAndAlternatives)</span></div>
@@ -894,15 +930,19 @@
         }
         if (_draft.FundingTypeChoice == "Regional / TPR transfer")
         {
-            return new[] { "MCCSS Fiscal Residential Funding Allocation", "MCCSS Fiscal Community Participation Funding Allocation" };
+            return new[]
+            {
+                "MCCSS Fiscal Residential Funding Allocation",
+                "MCCSS Fiscal Community Participation Funding Allocation",
+                "Passport Funding"
+            };
         }
         if (_draft.FundingTypeChoice == "CSN Youth")
         {
             return new[]
             {
                 "Temporary Funding Allocation - Complex Special Needs (CSN)",
-                "MCCSS Fiscal Residential Funding Allocation",
-                "MCCSS Fiscal Community Participation Funding Allocation"
+                "Temporary Funding Allocation - Community Enhancement (CEF)"
             };
         }
         return Catalog.MccssFundingTypeChoices;
@@ -916,55 +956,243 @@
             return allCompatible;
         }
 
+        var normalizedPlan = GlMappingService.NormalizeFundingType(plan);
+
         if (_draft.FundingTypeChoice == "In-Year MYSLP Residential")
         {
-            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            var isNonePlacement = string.IsNullOrEmpty(_draft.ResidentialPlacement) || 
+                                   _draft.ResidentialPlacement.Equals("None of the above", StringComparison.OrdinalIgnoreCase);
+
+            if (isNonePlacement)
             {
-                "Daily Living Support",
-                "Individualized Staffing",
-                "Fiscal Residential Pressure",
-                "Base Increase Adjustment",
-                "Permanent Compensation Enhancement"
-            };
-            return allCompatible.Where(x => allowed.Contains(x));
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Prescription Medication/Supplies",
+                    "Presciption Medication/Supplies"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else
+            {
+                // Only the 5 residential support types are allowed
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Daily Living Support",
+                    "Individualized Staffing",
+                    "Clinical/Behaviour Supports",
+                    "Prescription Medication/Supplies",
+                    "Presciption Medication/Supplies",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
         }
 
         if (_draft.FundingTypeChoice == "Regional / TPR transfer")
         {
-            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            var isNonePlacement = string.IsNullOrEmpty(_draft.ResidentialPlacement) || 
+                                  _draft.ResidentialPlacement.Equals("Lives with caregiver or guardian", StringComparison.OrdinalIgnoreCase) ||
+                                  _draft.ResidentialPlacement.Equals("None of the above", StringComparison.OrdinalIgnoreCase);
+
+            if (normalizedPlan.Equals("MCCSS Fiscal Community Participation Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
-                "Daily Living Support",
-                "Individualized Staffing",
-                "In Home Respite",
-                "Out of Home Respite",
-                "Nursing Care",
-                "Clinical/Behaviour Supports",
-                "Assessment",
-                "Presciption Medication/Supplies",
-                "Approved Technology/Specialized Equipment",
-                "Client Travel",
-                "Support Worker Travel",
-                "OPR Fire Code Reimbursement",
-                "Base Increase Adjustment",
-                "Permanent Compensation Enhancement"
-            };
-            return allCompatible.Where(x => allowed.Contains(x));
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Passport Program", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Daily Living Support",
+                    "Individualized Staffing",
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Live Events, Admissions & Tickets",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("MCCSS Fiscal Residential Funding Allocation", StringComparison.OrdinalIgnoreCase))
+            {
+                if (isNonePlacement)
+                {
+                    var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "Prescription Medication/Supplies",
+                        "Presciption Medication/Supplies"
+                    };
+                    return allCompatible.Where(x => allowed.Contains(x));
+                }
+                else
+                {
+                    var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "Daily Living Support",
+                        "Individualized Staffing",
+                        "Clinical/Behaviour Supports",
+                        "Prescription Medication/Supplies",
+                        "Presciption Medication/Supplies",
+                        "Client Travel"
+                    };
+                    return allCompatible.Where(x => allowed.Contains(x));
+                }
+            }
         }
 
         if (_draft.FundingTypeChoice == "CSN Youth")
         {
-            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            if (normalizedPlan.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Prescription Medication/Supplies",
+                    "Presciption Medication/Supplies"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+
+            var allowedCsn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "Daily Living Support",
                 "Individualized Staffing",
-                "Clinical/Behaviour Supports",
                 "In Home Respite",
                 "Out of Home Respite",
                 "Nursing Care",
+                "Clinical/Behaviour Supports",
                 "Assessment",
-                "Presciption Medication/Supplies"
+                "Assessments",
+                "Prescription Medication/Supplies",
+                "Presciption Medication/Supplies",
+                "Structured Community Activities",
+                "Structured Seasonal Programs",
+                "Client Travel",
+                "Parent Accommodation (Standard Room Only)",
+                "Parent Travel",
+                "Support Worker Travel"
             };
-            return allCompatible.Where(x => allowed.Contains(x));
+            return allCompatible.Where(x => allowedCsn.Contains(x));
+        }
+
+        if (_draft.FundingTypeChoice == "None of the above")
+        {
+            if (normalizedPlan.Equals("Historical Respite Funding Allocation", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("MCCSS Fiscal Community Participation Funding Allocation", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Fiscal Community Participation Pressure",
+                    "Base Increase Adjustment",
+                    "Permanent Compensation Enhancement",
+                    "Block Program Funding Subsidy"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("MCCSS Fiscal Residential Funding Allocation", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Fiscal Residential Pressure",
+                    "OPR Fire Code Reimbursement",
+                    "Admin Fee - Welcome Home",
+                    "Base Increase Adjustment",
+                    "Permanent Compensation Enhancement"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Passport Program", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Passport Administration"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Block Program Funding Subsidy",
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Temporary Flexible Funding  Allocation (Adult) - English", StringComparison.OrdinalIgnoreCase) ||
+                     normalizedPlan.Equals("Temporary Flexible Funding  Allocation (Adult) - French", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Temporary Funding Allocation (Adult) - English", StringComparison.OrdinalIgnoreCase) ||
+                     normalizedPlan.Equals("Temporary Funding Allocation (Adult) - French", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
+            else if (normalizedPlan.Equals("Temporary Funding Allocation - Children's", StringComparison.OrdinalIgnoreCase))
+            {
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel"
+                };
+                return allCompatible.Where(x => allowed.Contains(x));
+            }
         }
 
         return allCompatible;
@@ -1020,10 +1248,11 @@
         return curStep switch
         {
             "Initial Details" => !string.IsNullOrEmpty(_draft.FundingTypeChoice)
-                 && !string.IsNullOrEmpty(_draft.ResidentialPlacement)
-                 && _draft.PlanStart.HasValue && _draft.PlanEnd.HasValue
-                 && !string.IsNullOrWhiteSpace(_draft.CurrentSituationOutcome)
-                 && !string.IsNullOrWhiteSpace(_draft.ImpactAndAlternatives),
+                  && (_draft.FundingTypeChoice is not ("In-Year MYSLP Residential" or "Regional / TPR transfer") || !string.IsNullOrEmpty(_draft.ResidentialPlacement))
+                  && (_draft.FundingTypeChoice != "CSN Youth" || !string.IsNullOrEmpty(_draft.CsnLivingArrangement))
+                  && _draft.PlanStart.HasValue && _draft.PlanEnd.HasValue
+                  && !string.IsNullOrWhiteSpace(_draft.CurrentSituationOutcome)
+                  && !string.IsNullOrWhiteSpace(_draft.ImpactAndAlternatives),
             "Funder Selection" => !string.IsNullOrEmpty(_draft.MainFunder),
             "SCS Team Accountable" => !string.IsNullOrEmpty(_draft.ScsTeam),
             "Select Funding Types" => _draft.McsssTypes.Count > 0 && _draft.McsssTypes.All(t => _draft.McsssAmounts.TryGetValue(t, out var v) && v > 0),

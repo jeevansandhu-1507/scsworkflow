@@ -1,0 +1,148 @@
+Zoho Portal GL Architecture Mapping Matrix
+This master hierarchy report outlines the structural integration paths from the Zoho Client Portal mapping matrix down to General Ledger (GL) Codes. Data configurations are categorized systematically using a strict hierarchy order: Funding Commitment Type → Placement Type → Funding Type → Support Type.
+Funding Commitment Category: CSN Youth
+No Placement Rules Applicable (Flat Account Profile)
+
+Funding Commitment Category: MYSLP In Year Transfer OR Regional Transfer
+Placement Environment: Group Home
+
+Placement Environment: Host Family
+
+No Placement Rules Applicable (Flat Account Profile)
+
+Placement Environment: Specialized Accommodation
+
+Placement Environment: Supported Independent Living (SIL)
+
+Funding Commitment Category: Unspecified / Global System Allocations
+No Placement Rules Applicable (Flat Account Profile)
+
+Funding Commitment Category: None of the Above
+No Placement Rules Applicable (Flat Account Profile)
+
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | Prescription Medication/Supplies | 5246.0 | Prescription Medication/Supplies-CEF
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Daily Living Support | 5015.0 | Daily Living Support-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Individualized Staffing | 5045.0 | Individualized Staffing-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | In Home Respite | 5114.0 | In Home Respite -CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Out of Home Respite | 5144.0 | Out of Home Respite -CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Nursing Care | 5210.0 | Nursing Care-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Clinical/Behaviour Supports | 5225.0 | Clinical/Behaviour Supports-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Assessments | 5230.0 | Assessments-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Prescription Medication/Supplies | 5245.0 | Prescription Medication/Supplies-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Structured Community Activities | 5525.0 | Structured Community Activities-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Structured Seasonal Programs | 5545.0 | Structured Seasonal Programs-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Client Travel | 5615.0 | Client Travel-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Parent Accommodation (Standard Room Only) | 5635.0 | Parent Accommodation (Standard Room Only)-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Parent Travel | 5641.0 | Parent Travel-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) |  | Support Worker Travel | 5642.0 | Support Worker Travel-CSN
+Temporary Funding Allocation - Complex Special Needs (CSN) | Unrestricted | Unrestricted Planning Accounts | 5935.0 | Unrestricted Plan-CSN
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+MCCSS Fiscal Residential Funding Allocation |  | Daily Living Support | 5011.0 | Daily Living Support-GH
+MCCSS Fiscal Residential Funding Allocation |  | Individualized Staffing | 5041.0 | Individualized Staffing-GH
+MCCSS Fiscal Residential Funding Allocation |  | Clinical/Behaviour Supports | 5221.0 | Clinical/Behaviour Supports-GH
+MCCSS Fiscal Residential Funding Allocation |  | Prescription Medication/Supplies | 5241.0 | Prescription Medication/Supplies-GH
+MCCSS Fiscal Residential Funding Allocation |  | Client Travel | 5611.0 | Client Travel-GH
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+MCCSS Fiscal Residential Funding Allocation |  | Daily Living Support | 5012.0 | Daily Living Support-HF
+MCCSS Fiscal Residential Funding Allocation |  | Individualized Staffing | 5042.0 | Individualized Staffing-HF
+MCCSS Fiscal Residential Funding Allocation |  | Clinical/Behaviour Supports | 5222.0 | Clinical/Behaviour Supports-HF
+MCCSS Fiscal Residential Funding Allocation |  | Prescription Medication/Supplies | 5242.0 | Prescription Medication/Supplies-HF
+MCCSS Fiscal Residential Funding Allocation |  | Client Travel | 5612.0 | Client Travel-HF
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+MCCSS Fiscal Community Participation Funding Allocation |  | Centre Based Day Programming | 5511.0 | Centre Based Day Programming- CP (Perm)
+MCCSS Fiscal Community Participation Funding Allocation |  | Structured Community Activities | 5521.0 | Structured Community Activities-CP (Perm)
+MCCSS Fiscal Community Participation Funding Allocation |  | Structured Seasonal Programs | 5541.0 | Structured Seasonal Programs-CP (Perm)
+MCCSS Fiscal Community Participation Funding Allocation |  | Client Travel | 5616.0 | Client Travel-CP (Perm)
+MCCSS Fiscal Community Participation Funding Allocation | Unrestricted |  | 5910.0 | Unrestricted - MCCSS- Community Participation
+MCCSS Fiscal Residential Funding Allocation |  | Prescription Medication/Supplies | 5240.0 | Prescription Medication/Supplies
+MCCSS Fiscal Residential Funding Allocation | Unrestricted |  | 5905.0 | Unrestricted-MCCSS- Residential
+Passport Program |  | Daily Living Support | 5016.0 | Daily Living Support-Passport
+Passport Program |  | Individualized Staffing | 5046.0 | Individualized Staffing-Passport
+Passport Program |  | In Home Respite | 5120.0 | In Home Respite -Passport
+Passport Program |  | Out of Home Respite | 5150.0 | Out of Home Respite -Passport
+Passport Program |  | Centre Based Day Programming | 5517.0 | Centre Based Day Programming-Passport
+Passport Program |  | Structured Community Activities | 5531.0 | Structured Community Activities-Passport
+Passport Program |  | Structured Seasonal Programs | 5551.0 | Structured Seasonal Programs-Passport
+Passport Program |  | Live Events, Admissions & Tickets | 5561.0 | Live Events & Admissions-Passport
+Passport Program |  | Client Travel | 5617.0 | Client Travel-Passport Program
+Passport Program | Unrestricted | Unrestricted Planning Accounts | 5965.0 | Unrestricted - Passport
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+MCCSS Fiscal Residential Funding Allocation |  | Daily Living Support | 5013.0 | Daily Living Support-SA
+MCCSS Fiscal Residential Funding Allocation |  | Individualized Staffing | 5043.0 | Individualized Staffing-SA
+MCCSS Fiscal Residential Funding Allocation |  | Clinical/Behaviour Supports | 5223.0 | Clinical/Behaviour Supports-SA
+MCCSS Fiscal Residential Funding Allocation |  | Prescription Medication/Supplies | 5243.0 | Prescription Medication/Supplies-SA
+MCCSS Fiscal Residential Funding Allocation |  | Client Travel | 5613.0 | Client Travel-SA
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+MCCSS Fiscal Residential Funding Allocation |  | Daily Living Support | 5014.0 | Daily Living Support-SIL
+MCCSS Fiscal Residential Funding Allocation |  | Individualized Staffing | 5044.0 | Individualized Staffing-SIL
+MCCSS Fiscal Residential Funding Allocation |  | Clinical/Behaviour Supports | 5224.0 | Clinical/Behaviour Supports-SIL
+MCCSS Fiscal Residential Funding Allocation |  | Prescription Medication/Supplies | 5244.0 | Prescription Medication/Supplies-SIL
+MCCSS Fiscal Residential Funding Allocation |  | Client Travel | 5614.0 | Client Travel-SIL
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+Historical Respite Funding Allocation |  | In Home Respite | 5115.0 | In Home Respite  - Historical
+Historical Respite Funding Allocation |  | Out of Home Respite | 5145.0 | Out of Home Respite -Historical
+Historical Respite Funding Allocation |  | Centre Based Day Programming | 5512.0 | Centre Based Day Programming-Historical
+Historical Respite Funding Allocation |  | Structured Community Activities | 5526.0 | Structured Community Activities-Historical
+Historical Respite Funding Allocation |  | Structured Seasonal Programs | 5546.0 | Structured Seasonal Programs-Historical
+Historical Respite Funding Allocation |  | Client Travel | 5621.0 | Client Travel - Historical
+Historical Respite Funding Allocation | Unrestricted |  | 5940.0 | Unrestricted Plan-Historical
+MCCSS Fiscal Community Participation Funding Allocation |  | Fiscal Community Participation Pressure | 5820.0 | Fiscal Community Participation Pressure
+MCCSS Fiscal Community Participation Funding Allocation |  | Base Increase Adjustment | 5855.0 | Base Increase Adjustment-CP
+MCCSS Fiscal Community Participation Funding Allocation |  | Permanent Compensation Enhancement | 5865.0 | Permanent Compensation Enhancement-CP
+MCCSS Fiscal Community Participation Funding Allocation |  | Block Program Funding Subsidy | 5870.0 | Block Program Funding Subsidy-CP
+MCCSS Fiscal Residential Funding Allocation |  | Fiscal Residential Pressure | 5810.0 | Fiscal Residential Pressure
+MCCSS Fiscal Residential Funding Allocation |  | Fiscal Residential Pressure | 5810.0 | Fiscal Residential Pressure
+MCCSS Fiscal Residential Funding Allocation |  | OPR Fire Code Reimbursement | 5830.0 | OPR Fire Code Reimbursement
+MCCSS Fiscal Residential Funding Allocation |  | Admin Fee - Welcome Home | 5835.0 | Admin Fee - Welcome Home
+MCCSS Fiscal Residential Funding Allocation |  | Base Increase Adjustment | 5850.0 | Base Increase Adjustment-Res
+MCCSS Fiscal Residential Funding Allocation |  | Permanent Compensation Enhancement | 5860.0 | Permanent Compensation Enhancement-Res
+Passport Program |  | Passport Administration | 5840.0 | Passport Administration
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | Block Program Funding Subsidy | 5875.0 | Block Program Funding Subsidy-ASD
+Funding Type | Plan Type | Support Type | GL Code | Account Name Mapping
+Temporary Flexible Funding  Allocation (Adult) - English |  | In Home Respite | 5118.0 | In Home Respite -Adult Flex-E
+Temporary Flexible Funding  Allocation (Adult) - English |  | Out of Home Respite | 5148.0 | Out of Home Respite -Adult Flex-E
+Temporary Flexible Funding  Allocation (Adult) - English |  | Centre Based Day Programming | 5515.0 | Centre Based Day Programming-Adult Flex-E
+Temporary Flexible Funding  Allocation (Adult) - English |  | Structured Community Activities | 5529.0 | Structured Community Activities-Adult  Flex-E
+Temporary Flexible Funding  Allocation (Adult) - English |  | Structured Seasonal Programs | 5549.0 | Structured Seasonal Programs-Adult Flex -E
+Temporary Flexible Funding  Allocation (Adult) - English |  | Client Travel | 5624.0 | Client Travel - Adult Flex-E
+Temporary Flexible Funding  Allocation (Adult) - English | Unrestricted | Unrestricted Planning Accounts | 5955.0 | Unrestricted Plan-Adult Flex-E
+Temporary Flexible Funding  Allocation (Adult) - French |  | In Home Respite | 5119.0 | In Home Respite - Adult Flex- F
+Temporary Flexible Funding  Allocation (Adult) - French |  | Out of Home Respite | 5149.0 | Out of Home Respite -Adult Flex-F
+Temporary Flexible Funding  Allocation (Adult) - French |  | Centre Based Day Programming | 5516.0 | Centre Based Day Programming-Adult Flex-F
+Temporary Flexible Funding  Allocation (Adult) - French |  | Structured Community Activities | 5530.0 | Structured Community Activities-Adult Flex-F
+Temporary Flexible Funding  Allocation (Adult) - French |  | Structured Seasonal Programs | 5550.0 | Structured Seasonal Programs-Adult Flex-F
+Temporary Flexible Funding  Allocation (Adult) - French |  | Client Travel | 5625.0 | Client Travel - Adult Flex-F
+Temporary Flexible Funding  Allocation (Adult) - French | Unrestricted |  | 5960.0 | Unrestricted Plan-Adult Flex-F
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | In Home Respite | 5113.0 | In Home Respite - CEF
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | Out of Home Respite | 5143.0 | Out of Home Respite -CEF
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | Structured Community Activities | 5524.0 | Structured Community  Activities-CEF
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | Structured Seasonal Programs | 5544.0 | Structured Seasonal Programs-CEF
+Temporary Funding  Allocation- Community Enhancement (CEF) |  | Client Travel | 5620.0 | Client Travel -CEF
+Temporary Funding  Allocation- Community Enhancement (CEF) | Unrestricted |  | 5930.0 | Unrestricted Plan - CEF
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | In Home Respite | 5112.0 | In Home Respite - ASD
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | Out of Home Respite | 5142.0 | Out of Home Respite -ASD
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | Structured Community Activities | 5523.0 | Structured Community Activities-ASD
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | Structured Seasonal Programs | 5542.0 | Structured Seasonal Programs-ASD
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation |  | Client Travel | 5619.0 | Client Travel - ASD
+Temporary Funding -Autism Spectrum Disorder (ASD) Allocation | Unrestricted |  | 5925.0 | Unrestricted Plan-ASD
+Temporary Funding Allocation (Adult) - English |  | In Home Respite | 5116.0 | In Home Respite -TSF-E
+Temporary Funding Allocation (Adult) - English |  | Out of Home Respite | 5146.0 | Out of Home Respite -TSF-E
+Temporary Funding Allocation (Adult) - English |  | Centre Based Day Programming | 5513.0 | Centre Based Day Programming-TSF-E
+Temporary Funding Allocation (Adult) - English |  | Structured Community Activities | 5527.0 | Structured Community Activities-TSF-E
+Temporary Funding Allocation (Adult) - English |  | Structured Seasonal Programs | 5547.0 | Structured Seasonal Programs-TSF-E
+Temporary Funding Allocation (Adult) - English |  | Client Travel | 5622.0 | Client Travel - TSF-E
+Temporary Funding Allocation (Adult) - English | Unrestricted |  | 5945.0 | Unrestricted-TSF-E
+Temporary Funding Allocation (Adult) - French |  | In Home Respite | 5117.0 | In Home Respite -TSF-F
+Temporary Funding Allocation (Adult) - French |  | Out of Home Respite | 5147.0 | Out of Home Respite -TSF-F
+Temporary Funding Allocation (Adult) - French |  | Centre Based Day Programming | 5514.0 | Centre Based Day Programming-TSF-F
+Temporary Funding Allocation (Adult) - French |  | Structured Community Activities | 5528.0 | Structured Community Activities-TSF-F
+Temporary Funding Allocation (Adult) - French |  | Structured Seasonal Programs | 5548.0 | Structured Seasonal Programs-TSF-F
+Temporary Funding Allocation (Adult) - French |  | Client Travel | 5623.0 | Client Travel - TSF-F
+Temporary Funding Allocation (Adult) - French | Unrestricted |  | 5950.0 | Unrestricted Plan-TSF-F
+Temporary Funding Allocation - Children's |  | In Home Respite | 5111.0 | In Home Respite -CCM Flex
+Temporary Funding Allocation - Children's |  | Out of Home Respite | 5141.0 | Out of Home Respite-CCM Flex
+Temporary Funding Allocation - Children's |  | Structured Community Activities | 5522.0 | Structured Community Activities-CCM Flex
+Temporary Funding Allocation - Children's |  | Structured Seasonal Programs | 5543.0 | Structured Seasonal Programs-CCM Flex
+Temporary Funding Allocation - Children's |  | Client Travel | 5618.0 | Client Travel - CCM Flex
+Temporary Funding Allocation - Children's | Unrestricted |  | 5920.0 | Unrestricted Plan - CCM Flex

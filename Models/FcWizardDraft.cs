@@ -16,6 +16,7 @@ public class FcWizardDraft
     // Step 1 — Funding type + placement + plan dates + outcome + impact
     public string FundingTypeChoice { get; set; } = "";
     public string ResidentialPlacement { get; set; } = "";
+    public string CsnLivingArrangement { get; set; } = "";
     public DateTime? PlanStart { get; set; }
     public DateTime? PlanEnd { get; set; }
     public string CurrentSituationOutcome { get; set; } = "";

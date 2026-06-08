@@ -119,6 +119,7 @@ public class FundingCommitment
 
     public string FundingType { get; set; } = "Individual Funding";
     public string Placement { get; set; } = "Family Home";
+    public string CsnLivingArrangement { get; set; } = "";
     public string Ministry { get; set; } = "Service Coordinator";
     public string PlanType { get; set; } = "Restricted";
 
@@ -168,7 +169,7 @@ public class FundingCommitment
             FiscalYear = FiscalYear,
             FundingSource = FundingSource,
             Version = Version,
-            FundingType = FundingType, Placement = Placement, Ministry = Ministry, PlanType = PlanType,
+            FundingType = FundingType, Placement = Placement, CsnLivingArrangement = CsnLivingArrangement, Ministry = Ministry, PlanType = PlanType,
             MainFunder = MainFunder, AddlFunder = AddlFunder,
             AddlFunderAmount = AddlFunderAmount, AddlFunderVendor = AddlFunderVendor,
             PlanStart = PlanStart, PlanEnd = PlanEnd,
@@ -201,7 +202,15 @@ public static class Catalog
         "Specialized Accommodations",
         "Host Family",
         "Supported Independent Living",
-        "Resides with Caregiver/Guardian"
+        "Lives with caregiver or guardian",
+        "None of the above"
+    };
+
+    // CSN Living Arrangements
+    public static readonly string[] CsnLivingArrangements =
+    {
+        "Lives with caregiver or guardian",
+        "Lives with service provider (operator)"
     };
 
     // Wizard step 2 — main funder choice (matches dev.portal screenshot)
@@ -213,8 +222,7 @@ public static class Catalog
     // Wizard step 2 — additional funders (multi-select chips)
     public static readonly string[] AddlFunderChoices =
     {
-        "Passport One (Family Services Ontario)", "SSAH", "CHEO", "ODSP",
-        "Trillium Foundation", "United Way", "Local Municipality", "Family Contribution"
+        "MCCSS", "Passport One (Family Services Ontario)", "SSAH", "CHEO", "ODSP"
     };
 
     // Wizard step 3 — SCS team accountable (conditional on funder)
@@ -233,10 +241,11 @@ public static class Catalog
         "Temporary Funding Allocation - Children's",
         "Temporary Funding - Autism Spectrum Disorder (ASD) Allocation",
         "Temporary Funding Allocation - Community Enhancement (CEF)",
-        "Permanent Funding Allocation - Children's",
-        "Temporary Funding Allocation - Adult",
-        "Permanent Funding Allocation - Adult",
-        "Special Services at Home (SSAH)",
+        "Temporary Funding Allocation (Adult)",
+        "Temporary Flexible Funding Allocation (Adult)",
+        "Historical Respite Funding Allocation",
+        "MCCSS Fiscal Community Participation Funding Allocation",
+        "MCCSS Fiscal Residential Funding Allocation",
         "Passport Funding"
     };
 

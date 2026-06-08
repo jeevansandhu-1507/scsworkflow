@@ -60,6 +60,19 @@ public static class GlMappingService
         if (clean.Equals("Temporary Funding Allocation - Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
             return "Temporary Funding  Allocation- Community Enhancement (CEF)"; // excel spelling has double space & hyphen space
 
+        if (clean.Equals("Temporary Funding Allocation - Adult", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("Temporary Funding Allocation (Adult)", StringComparison.OrdinalIgnoreCase))
+        {
+            var isFrench = SCSPortal.Services.LocaleService.CurrentLocale == AppLocale.Fr;
+            return isFrench ? "Temporary Funding Allocation (Adult) - French" : "Temporary Funding Allocation (Adult) - English";
+        }
+
+        if (clean.Equals("Temporary Flexible Funding Allocation (Adult)", StringComparison.OrdinalIgnoreCase))
+        {
+            var isFrench = SCSPortal.Services.LocaleService.CurrentLocale == AppLocale.Fr;
+            return isFrench ? "Temporary Flexible Funding  Allocation (Adult) - French" : "Temporary Flexible Funding  Allocation (Adult) - English";
+        }
+
         return clean;
     }
 
@@ -67,7 +80,9 @@ public static class GlMappingService
     {
         if (string.IsNullOrEmpty(raw)) return "";
         var clean = raw.Trim();
-        // Catalog uses: Group Living, Specialized Accommodations, Host Family, Supported Independent Living, Resides with Caregiver/Guardian
+        if (clean.Equals("None of the above", StringComparison.OrdinalIgnoreCase))
+            return "";
+        // Catalog uses: Group Living, Specialized Accommodations, Host Family, Supported Independent Living, Lives with caregiver or guardian
         // Excel uses: Group Home, Host Family, Specialized Accommodation, Supported Independent Living (SIL)
         if (clean.Equals("Group Living", StringComparison.OrdinalIgnoreCase))
             return "Group Home";
@@ -88,7 +103,7 @@ public static class GlMappingService
         new() { Name = "Nursing Care", GlCode = 5210, Description = "Health services provided by a registered nurse.", CompatibleFundingTypes = new() { "Temporary Funding Allocation - Complex Special Needs (CSN)", "MCCSS Fiscal Residential Funding Allocation" } },
         new() { Name = "Clinical/Behaviour Supports", GlCode = 5220, Description = "Therapeutic and behavioural services such as psychology, occupational therapy, speech‑language services, and behaviour support.", CompatibleFundingTypes = new() { "Temporary Funding Allocation - Complex Special Needs (CSN)", "MCCSS Fiscal Residential Funding Allocation" } },
         new() { Name = "Assessment", GlCode = 5230, Description = "Clinical, psychosocial, educational, or health assessments used to understand needs and plan supports.", CompatibleFundingTypes = new() { "Temporary Funding Allocation - Complex Special Needs (CSN)", "MCCSS Fiscal Residential Funding Allocation" } },
-        new() { Name = "Presciption Medication/Supplies", GlCode = 5240, Description = "Prescription medications and supplies not covered by OHIP, ODSP, or private plans.", CompatibleFundingTypes = new() { "Temporary Funding  Allocation- Community Enhancement (CEF)", "Temporary Funding Allocation - Complex Special Needs (CSN)", "MCCSS Fiscal Residential Funding Allocation" } },
+        new() { Name = "Prescription Medication/Supplies", GlCode = 5240, Description = "Prescription medications and supplies not covered by OHIP, ODSP, or private plans.", CompatibleFundingTypes = new() { "Temporary Funding  Allocation- Community Enhancement (CEF)", "Temporary Funding Allocation - Complex Special Needs (CSN)", "MCCSS Fiscal Residential Funding Allocation" } },
         new() { Name = "Approved Technology/Specialized Equipment", GlCode = 5310, Description = "Devices or equipment that support independence, communication, mobility, or health.", CompatibleFundingTypes = new() { "Temporary Funding  Allocation- Community Enhancement (CEF)", "MCCSS Fiscal Residential Funding Allocation", "Passport" } },
         new() { Name = "Centre Based Day Programming", GlCode = 5510, Description = "Day programs delivered at a central or facility‑based location.", CompatibleFundingTypes = new() { "Historical Respite Funding Allocation", "Temporary Funding  Allocation (Adult) - English", "Temporary Funding  Allocation (Adult) - French", "Temporary Flexible Funding  Allocation (Adult) - English", "Temporary Flexible Funding  Allocation (Adult) - French", "MCCSS Fiscal Community Participation Funding Allocation", "Passport" } },
         new() { Name = "Structured Community Activities", GlCode = 5520, Description = "Ongoing community-based recreational and day programs.", CompatibleFundingTypes = new() { "Temporary Funding Allocation - Children's", "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", "Temporary Funding  Allocation- Community Enhancement (CEF)", "Temporary Funding Allocation - Complex Special Needs (CSN)", "Historical Respite Funding Allocation", "Temporary Funding  Allocation (Adult) - English", "Temporary Funding  Allocation (Adult) - French", "Temporary Flexible Funding  Allocation (Adult) - English", "Temporary Flexible Funding  Allocation (Adult) - French", "MCCSS Fiscal Community Participation Funding Allocation", "Passport" } },
@@ -133,7 +148,7 @@ public static class GlMappingService
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Prescription Medication/Supplies", PlacementType = "Specialized Accommodation", GlCode = 5243, GlName = "Prescription Medication/Supplies-SA", AccountId = "72899000000125572" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Prescription Medication/Supplies", PlacementType = "Supported Independent Living (SIL)", GlCode = 5244, GlName = "Prescription Medication/Supplies-SIL", AccountId = "72899000000125584" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = null, FundingStatus = "Temporary", SupportType = "Prescription Medication/Supplies", PlacementType = null, GlCode = 5245, GlName = "Prescription Medication/Supplies-CSN", AccountId = "72899000000125590" },
-        new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = null, FundingStatus = "Temporary", SupportType = "Prescription Medication/Supplies", PlacementType = null, GlCode = 5246, GlName = "Prescription Medication/Supplies-CEF", AccountId = "72899000000125596" },
+        new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = null, FundingStatus = "Temporary", SupportType = "Prescription Medication/Supplies", PlacementType = null, GlCode = 5246, GlName = "Prescription Medication/Supplies-CEF for CSN", AccountId = "72899000000125596" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = "Unrestricted", FundingStatus = "Permanent", SupportType = "None", PlacementType = null, GlCode = 5910, GlName = "Unrestricted - MCCSS- Community Participation", AccountId = "72899000000319008" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Centre Based Day Programming", PlacementType = null, GlCode = 5511, GlName = "Centre Based Day Programming- CP (Perm)", AccountId = "72899000000125200" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5521, GlName = "Structured Community Activities-CP (Perm)", AccountId = "72899000000125200" },
@@ -216,7 +231,6 @@ public static class GlMappingService
         new() { FundingType = "Passport Program", PlanType = null, FundingStatus = "Permanent", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5551, GlName = "Structured Seasonal Programs-Passport", AccountId = "72899000000125296" },
         new() { FundingType = "Passport Program", PlanType = null, FundingStatus = "Permanent", SupportType = "Live Events, Admissions & Tickets", PlacementType = null, GlCode = 5561, GlName = "Live Events & Admissions-Passport", AccountId = "72899000000125296" },
         new() { FundingType = "Passport Program", PlanType = null, FundingStatus = "Permanent", SupportType = "Client Travel", PlacementType = null, GlCode = 5617, GlName = "Client Travel-Passport Program", AccountId = "72899000000125504" },
-        new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Fiscal Residential Pressure", PlacementType = null, GlCode = 5810, GlName = "Fiscal Residential Pressure", AccountId = "72899000000125662" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Fiscal Community Participation Pressure", PlacementType = null, GlCode = 5820, GlName = "Fiscal Community Participation Pressure", AccountId = "72899000000125600" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Base Increase Adjustment", PlacementType = null, GlCode = 5850, GlName = "Base Increase Adjustment-Res", AccountId = "72899000000125696" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Permanent Compensation Enhancement", PlacementType = null, GlCode = 5860, GlName = "Permanent Compensation Enhancement-Res", AccountId = "72899000000125696" },
@@ -261,8 +275,8 @@ public static class GlMappingService
         new() { FundingType = "Historical Respite Funding Allocation", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5145, GlName = "Out of Home Respite -Historical", AccountId = "72899000000125408" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5146, GlName = "Out of Home Respite -TSF-E", AccountId = "72899000000133600" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5147, GlName = "Out of Home Respite -TSF-F", AccountId = "72899000000133600" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5148, GlName = "Out of Home Respite -Adult Flex-E", AccountId = "72899000000133504" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5149, GlName = "Out of Home Respite -Adult Flex-F", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5148, GlName = "Out of Home Respite -Adult Flex-E", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5149, GlName = "Out of Home Respite -Adult Flex-F", AccountId = "72899000000133504" },
         new() { FundingType = "Passport Program", FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5150, GlName = "Out of Home Respite -Passport", AccountId = "72899000000125408" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", FundingStatus = "Temporary", SupportType = "Nursing Care", PlacementType = null, GlCode = 5210, GlName = "Nursing Care-CSN", AccountId = "72899000000125600" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", FundingStatus = "Permanent", SupportType = "Clinical/Behaviour Supports", PlacementType = "Group Home", GlCode = 5221, GlName = "Clinical/Behaviour Supports-GH", AccountId = "72899000000125600" },
@@ -286,8 +300,8 @@ public static class GlMappingService
         new() { FundingType = "Historical Respite Funding Allocation", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5526, GlName = "Structured Community Activities-Historical", AccountId = "72899000000133504" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5527, GlName = "Structured Community Activities-TSF-E", AccountId = "72899000000133600" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5528, GlName = "Structured Community Activities-TSF-F", AccountId = "72899000000133600" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5529, GlName = "Structured Community Activities-Adult  Flex-E", AccountId = "72899000000133504" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5530, GlName = "Structured Community Activities-Adult Flex-F", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5529, GlName = "Structured Community Activities-Adult  Flex-E", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5530, GlName = "Structured Community Activities-Adult Flex-F", AccountId = "72899000000133504" },
         new() { FundingType = "Passport Program", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5531, GlName = "Structured Community Activities-Passport", AccountId = "72899000000125200" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", FundingStatus = "Permanent", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5541, GlName = "Structured Seasonal Programs-CP (Perm)", AccountId = "72899000000125296" },
         new() { FundingType = "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5542, GlName = "Structured Seasonal Programs-ASD", AccountId = "72899000000125296" },
@@ -297,8 +311,8 @@ public static class GlMappingService
         new() { FundingType = "Historical Respite Funding Allocation", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5546, GlName = "Structured Seasonal Programs-Historical", AccountId = "72899000000133504" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5547, GlName = "Structured Seasonal Programs-TSF-E", AccountId = "72899000000133600" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5548, GlName = "Structured Seasonal Programs-TSF-F", AccountId = "72899000000133600" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5549, GlName = "Structured Seasonal Programs-Adult Flex -E", AccountId = "72899000000133504" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5550, GlName = "Structured Seasonal Programs-Adult Flex-F", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5549, GlName = "Structured Seasonal Programs-Adult Flex -E", AccountId = "72899000000133504" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5550, GlName = "Structured Seasonal Programs-Adult Flex-F", AccountId = "72899000000133504" },
         new() { FundingType = "Passport Program", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5551, GlName = "Structured Seasonal Programs-Passport", AccountId = "72899000000125296" },
         new() { FundingType = "Passport Program", FundingStatus = "Temporary", SupportType = "Live Events, Admissions & Tickets", PlacementType = null, GlCode = 5561, GlName = "Live Events & Admissions-Passport", AccountId = "72899000000125296" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", FundingStatus = "Permanent", SupportType = "Client Travel", PlacementType = "Group Home", GlCode = 5611, GlName = "Client Travel-GH", AccountId = "72899000000125504" },
@@ -314,8 +328,8 @@ public static class GlMappingService
         new() { FundingType = "Historical Respite Funding Allocation", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5621, GlName = "Client Travel - Historical", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5622, GlName = "Client Travel - TSF-E", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5623, GlName = "Client Travel - TSF-F", AccountId = "72899000000372304" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5624, GlName = "Client Travel - Adult Flex-E", AccountId = "72899000000372304" },
-        new() { FundingType = "Temporary Funding Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5625, GlName = "Client Travel - Adult Flex-F", AccountId = "72899000000372304" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - English", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5624, GlName = "Client Travel - Adult Flex-E", AccountId = "72899000000372304" },
+        new() { FundingType = "Temporary Flexible Funding  Allocation (Adult) - French", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5625, GlName = "Client Travel - Adult Flex-F", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", FundingStatus = "Temporary", SupportType = "Parent Accommodation (Standard Room Only)", PlacementType = null, GlCode = 5635, GlName = "Parent Accommodation (Standard Room Only)-CSN", AccountId = "72899000000347008" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", FundingStatus = "Temporary", SupportType = "Parent Travel", PlacementType = null, GlCode = 5641, GlName = "Parent Travel-CSN", AccountId = "72899000000125504" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", FundingStatus = "Temporary", SupportType = "Support Worker Travel", PlacementType = null, GlCode = 5642, GlName = "Support Worker Travel-CSN", AccountId = "72899000000125504" },
@@ -334,6 +348,19 @@ public static class GlMappingService
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", FundingStatus = "Permanent", SupportType = "Prescription Medication/Supplies", PlacementType = "Host Family", GlCode = 5242, GlName = "Prescription Medication/Supplies-HF", AccountId = "72899000000125578" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", FundingStatus = "Permanent", SupportType = "Prescription Medication/Supplies", PlacementType = "Specialized Accommodation", GlCode = 5243, GlName = "Prescription Medication/Supplies-SA", AccountId = "72899000000125572" },
         new() { FundingType = "MCCSS Fiscal Residential Funding Allocation", FundingStatus = "Permanent", SupportType = "Prescription Medication/Supplies", PlacementType = "Supported Independent Living (SIL)", GlCode = 5244, GlName = "Prescription Medication/Supplies-SIL", AccountId = "72899000000125584" },
+        new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", FundingStatus = "Temporary", SupportType = "Prescription Medication/Supplies", PlacementType = null, GlCode = 5246, GlName = "Prescription Medication/Supplies-CEF for CSN", AccountId = "72899000000125596" },
+        // Base / Generic Program Invoice Mappings (Empty FundingType)
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Daily Living Support", PlacementType = null, GlCode = 5010, GlName = "Daily Living Support", AccountId = "72899000000119186" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Approved Technology/Specialized Equipment", PlacementType = null, GlCode = 5310, GlName = "Approved Technology/Specialized Equipment", AccountId = "72899000000344083" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Community Participation Supports", PlacementType = null, GlCode = 5500, GlName = "Community Participation Supports", AccountId = "72899000000070057" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Centre Based Day Programming", PlacementType = null, GlCode = 5510, GlName = "Centre Based Day Programming", AccountId = "72899000000125218" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5520, GlName = "Structured Community Activities", AccountId = "72899000000125266" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5540, GlName = "Structured Seasonal Programs", AccountId = "72899000000347039" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Live Events, Admissions & Tickets", PlacementType = null, GlCode = 5560, GlName = "Live Events, Admissions & Tickets", AccountId = "72899000000125362" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Travel & Other Client Costs", PlacementType = null, GlCode = 5600, GlName = "Travel & Other Client Costs", AccountId = "72899000000372297" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5610, GlName = "Client Travel", AccountId = "72899000000125488" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Parent/Caregiver Travel", PlacementType = null, GlCode = 5640, GlName = "Parent/Caregiver Travel", AccountId = "72899000000125536" },
+        new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Extraordinary Supports", PlacementType = null, GlCode = 5800, GlName = "Extraordinary Supports", AccountId = "72899000000377008" },
     };
 
     public static List<string> GetCompatibleSupportTypes(string fundingType, string planType)
@@ -373,6 +400,50 @@ public static class GlMappingService
     public static GlMappingResult? GetGlMappingForCommitment(string fundingType, string planType, string fundingStatus, string supportType, string? placementType)
     {
         var normFunding = NormalizeFundingType(fundingType);
+        
+        // CSN / CEF direct lookup bypass logic (ignores placement completely)
+        if (normFunding.Equals("Temporary Funding Allocation - Complex Special Needs (CSN)", StringComparison.OrdinalIgnoreCase) ||
+            normFunding.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
+        {
+            CommitmentGlMapping? csnMatch = null;
+            if (planType?.Equals("Unrestricted", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                csnMatch = CommitmentMappings.FirstOrDefault(m =>
+                    m.FundingType.Equals(normFunding, StringComparison.OrdinalIgnoreCase) &&
+                    m.PlanType != null && m.PlanType.Equals("Unrestricted", StringComparison.OrdinalIgnoreCase)
+                );
+            }
+            else
+            {
+                csnMatch = CommitmentMappings.FirstOrDefault(m =>
+                    m.FundingType.Equals(normFunding, StringComparison.OrdinalIgnoreCase) &&
+                    m.SupportType.Equals(supportType, StringComparison.OrdinalIgnoreCase)
+                );
+            }
+
+            if (csnMatch != null)
+            {
+                return new GlMappingResult
+                {
+                    GlCode = csnMatch.GlCode,
+                    GlName = csnMatch.GlName,
+                    AccountId = csnMatch.AccountId
+                };
+            }
+        }
+        if (normFunding.Equals("CHEO", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5970, GlName = "CHEO — Placeholder", AccountId = "CHEO_PLACEHOLDER_ACC_ID" };
+        }
+        if (normFunding.Equals("SSAH", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5971, GlName = "SSAH — Placeholder", AccountId = "SSAH_PLACEHOLDER_ACC_ID" };
+        }
+        if (normFunding.Equals("ODSP", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5972, GlName = "ODSP — Placeholder", AccountId = "ODSP_PLACEHOLDER_ACC_ID" };
+        }
+
         var normPlacement = NormalizePlacementType(placementType);
         var normPlan = planType ?? "Restricted";
         var normStatus = fundingStatus ?? "Temporary";
@@ -432,6 +503,39 @@ public static class GlMappingService
     public static GlMappingResult? GetGlMappingForInvoice(string fundingType, string fundingStatus, string supportType, string? placementType)
     {
         var normFunding = NormalizeFundingType(fundingType);
+        
+        // CSN / CEF direct lookup bypass logic for invoices (ignores placement completely)
+        if (normFunding.Equals("Temporary Funding Allocation - Complex Special Needs (CSN)", StringComparison.OrdinalIgnoreCase) ||
+            normFunding.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
+        {
+            var csnMatch = InvoiceMappings.FirstOrDefault(m =>
+                m.FundingType.Equals(normFunding, StringComparison.OrdinalIgnoreCase) &&
+                m.SupportType.Equals(supportType, StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (csnMatch != null)
+            {
+                return new GlMappingResult
+                {
+                    GlCode = csnMatch.GlCode,
+                    GlName = csnMatch.GlName,
+                    AccountId = csnMatch.AccountId
+                };
+            }
+        }
+        if (normFunding.Equals("CHEO", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5970, GlName = "CHEO — Placeholder", AccountId = "CHEO_PLACEHOLDER_ACC_ID" };
+        }
+        if (normFunding.Equals("SSAH", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5971, GlName = "SSAH — Placeholder", AccountId = "SSAH_PLACEHOLDER_ACC_ID" };
+        }
+        if (normFunding.Equals("ODSP", StringComparison.OrdinalIgnoreCase))
+        {
+            return new GlMappingResult { GlCode = 5972, GlName = "ODSP — Placeholder", AccountId = "ODSP_PLACEHOLDER_ACC_ID" };
+        }
+
         var normPlacement = NormalizePlacementType(placementType);
         var normStatus = fundingStatus ?? "Temporary";
 

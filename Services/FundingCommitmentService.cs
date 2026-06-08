@@ -790,6 +790,7 @@ public class FundingCommitmentService
             PlanEnd = d.PlanEnd?.ToString("yyyy-MM-dd") ?? today.AddYears(1).ToString("yyyy-MM-dd"),
             FundingType = string.IsNullOrEmpty(d.FundingTypeChoice) ? "Individual Funding" : d.FundingTypeChoice,
             Placement = string.IsNullOrEmpty(d.ResidentialPlacement) ? "Family Home" : d.ResidentialPlacement,
+            CsnLivingArrangement = d.CsnLivingArrangement,
             MainFunder = d.MainFunder,
             AddlFunder = d.AdditionalFunders.Count > 0 ? string.Join(", ", d.AdditionalFunders) : "— None —",
             Ministry = string.IsNullOrEmpty(d.ScsTeam) ? "Service Coordinator" : d.ScsTeam,
