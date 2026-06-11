@@ -49,6 +49,7 @@
             {
                 case "Initial Details": @StepInitial() break;
                 case "Funder Selection": @StepFunderSelection() break;
+                case "Additional Funder Details": @StepAdditionalFunderDetails() break;
                 case "SCS Team Accountable": @StepScsTeam() break;
                 case "Select Funding Types": @StepSelectFundingTypes() break;
                 case "Service Line Allocation": @StepServiceLineAllocation() break;
@@ -124,6 +125,10 @@
             {
                 steps.Add("Vendor Assignment");
             }
+        }
+        if (_draft.AdditionalFunders.Count > 0)
+        {
+            steps.Add("Additional Funder Details");
         }
         steps.Add("File Upload");
         steps.Add("Review & Submit");
@@ -287,7 +292,7 @@
                         var afv = af;
                         <span class="wiz-chip selected">
                             @af
-                            <button @onclick="() => _draft.AdditionalFunders.Remove(afv)">×</button>
+                            <button @onclick="() => RemoveAdditionalFunder(afv)">×</button>
                         </span>
                     }
                 </div>
@@ -308,10 +313,66 @@
         }
     </text>;
 
+    // ---------- Step: Additional Funder Details ----------
+    private RenderFragment StepAdditionalFunderDetails() => @<text>
+        <h2 class="wiz-h2">Additional Funder Details</h2>
+        <div class="wiz-note">You selected: @(string.Join(", ", _draft.AdditionalFunders)) as additional funder(s). Please specify their funding amount and vendor assignment.</div>
+        
+        <div class="wiz-row">
+            <label class="wiz-q">Input the total additional funding commitment amount <span class="req">*</span></label>
+            <input type="number" min="0" class="modal-input" placeholder="$ 0"
+                   value="@(_draft.AddlFunderAmount == 0 ? "" : _draft.AddlFunderAmount.ToString("0.##"))"
+                   @onchange="@(e => { decimal.TryParse(e.Value?.ToString(), out var val); _draft.AddlFunderAmount = val; })" />
+        </div>
+        
+        <div class="wiz-row" style="margin-top:18px">
+            <label class="wiz-q">Would you like to assign this additional funding amount to a vendor? <span class="req">*</span></label>
+            <label class="wiz-radio">
+                <input type="radio" name="assignaddlv" checked="@_draft.AssignAddlAmountToVendor" @onchange="() => _draft.AssignAddlAmountToVendor = true" />
+                <span>Yes</span>
+            </label>
+            <label class="wiz-radio">
+                <input type="radio" name="assignaddlv" checked="@(!_draft.AssignAddlAmountToVendor)" @onchange="() => { _draft.AssignAddlAmountToVendor = false; _draft.AddlFunderVendor = 0; }" />
+                <span>No</span>
+            </label>
+        </div>
+
+        @if (_draft.AssignAddlAmountToVendor)
+        {
+            <div class="wiz-row" style="margin-top:18px">
+                <label class="wiz-q">Additional funding amount to assign to vendor <span class="req">*</span></label>
+                <input type="number" min="0" max="@_draft.AddlFunderAmount" class="modal-input" placeholder="$ 0"
+                       value="@(_draft.AddlFunderVendor == 0 ? "" : _draft.AddlFunderVendor.ToString("0.##"))"
+                       @onchange="@(e => { decimal.TryParse(e.Value?.ToString(), out var val); _draft.AddlFunderVendor = val; })" />
+                @if (_draft.AddlFunderVendor > _draft.AddlFunderAmount)
+                {
+                    <div style="color:var(--danger);margin-top:4px;font-size:12px">Vendor assignment amount cannot exceed the additional funder amount.</div>
+                }
+            </div>
+        }
+    </text>;
+
+    private void RemoveAdditionalFunder(string af)
+    {
+        _draft.AdditionalFunders.Remove(af);
+        if (_draft.AdditionalFunders.Count == 0)
+        {
+            _draft.AddlFunderAmount = 0;
+            _draft.AssignAddlAmountToVendor = false;
+            _draft.AddlFunderVendor = 0;
+        }
+    }
+
     private void OnMainFunderChanged(string mainFunder)
     {
         _draft.MainFunder = mainFunder;
         _draft.AdditionalFunders.Remove(mainFunder);
+        if (_draft.AdditionalFunders.Count == 0)
+        {
+            _draft.AddlFunderAmount = 0;
+            _draft.AssignAddlAmountToVendor = false;
+            _draft.AddlFunderVendor = 0;
+        }
         _draft.McsssTypes.Clear();
         _draft.McsssAmounts.Clear();
         _draft.McsssRestrictions.Clear();
@@ -386,6 +447,9 @@
     private void OnFundingTypeChoiceChanged(string choice)
     {
         _draft.FundingTypeChoice = choice;
+        _draft.AddlFunderAmount = 0;
+        _draft.AssignAddlAmountToVendor = false;
+        _draft.AddlFunderVendor = 0;
 
         if (choice == "An In-Year MYSLP transfer plan")
         {
@@ -519,6 +583,10 @@
     private RenderFragment StepServiceLineAllocation() => @<text>
         @{
             var planTotal = _draft.TotalPlan;
+            if (_draft.AssignAddlAmountToVendor)
+            {
+                planTotal += _draft.AddlFunderAmount;
+            }
             var preHst = _draft.Services.Sum(s => s.LineTotal);
             var hstUnrecoverable = _draft.Services.Where(s => s.IncludeHst).Sum(s => s.LineTotalWithHst - s.LineTotal);
             var commitmentImpact = preHst + hstUnrecoverable;
@@ -535,7 +603,7 @@
             </div>
         </div>
 
-        @if (_draft.McsssTypes.Count == 0)
+        @if (_draft.McsssTypes.Count == 0 && !_draft.AssignAddlAmountToVendor)
         {
             <div class="empty-state">
                 <div class="empty-title">No funding types selected</div>
@@ -567,6 +635,34 @@
                         <button class="btn" style="margin-top:8px" @onclick="() => AddLineForPlan(tv)">+ Add Line</button>
                     </div>
                 </div>
+            }
+
+            @if (_draft.AssignAddlAmountToVendor)
+            {
+                @foreach (var af in _draft.AdditionalFunders)
+                {
+                    var afv = af;
+                    var planAmt = _draft.AddlFunderAmount;
+                    var lines = _draft.Services.Where(s => s.Plan == afv).ToList();
+                    var sectionCommit = lines.Sum(s => s.LineTotalWithHst);
+
+                    <div class="ft-section" style="border:1px solid var(--border);border-radius:4px;margin-bottom:16px;background:#fff">
+                        <div class="ft-section-head" style="padding:12px 16px;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center;font-weight:600;border-bottom:1px solid var(--border)">
+                            <span>Additional Funder — @afv</span>
+                            <span style="color:@(sectionCommit > planAmt ? "var(--danger)" : "var(--brand-700)")">
+                                @sectionCommit.ToString("C2") / $@planAmt.ToString("N0")
+                            </span>
+                        </div>
+                        <div style="padding:12px">
+                            @ServiceTableHeader()
+                            @foreach (var ln in lines)
+                            {
+                                @ServiceRow(ln)
+                            }
+                            <button class="btn" style="margin-top:8px" @onclick="() => AddLineForPlan(afv)">+ Add Line</button>
+                        </div>
+                    </div>
+                }
             }
         }
     </text>;
@@ -667,75 +763,139 @@
     // ---------- Step: Vendor Assignment (Unrestricted MCCSS & non-MCCSS) ----------
     private RenderFragment StepVendorAssignment() => @<text>
         @{
-            var totalPlan = (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? _draft.TotalPlan : NonMccssPlanAmount;
+            var totalPlan = 0m;
+            if (AssignAmountToVendor)
+            {
+                totalPlan += (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? _draft.TotalPlan : NonMccssPlanAmount;
+            }
+            if (_draft.AssignAddlAmountToVendor)
+            {
+                totalPlan += _draft.AddlFunderAmount;
+            }
             var totalCommitted = _draft.Services.Sum(s => s.LineTotalWithHst);
             var remaining = totalPlan - totalCommitted;
+            var isMccssOrTransfer = _draft.MainFunder == "MCCSS" || IsTransferPlan;
         }
-        <h2 class="wiz-h2">You have selected Unrestricted plan</h2>
 
-        <div class="ft-summary" style="margin-bottom:16px">
-            <div class="ft-summary-head" style="font-weight:600;margin-bottom:8px">Vendor Assignment Summary</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
-                <div>Total Plan Amount: <strong class="mono">@totalPlan.ToString("C2")</strong></div>
-                <div>Already Assigned: <strong class="mono">@totalCommitted.ToString("C2")</strong></div>
-                <div>Remaining Funding Available: <strong class="mono" style="color:@(remaining < 0 ? "var(--danger)" : "var(--success)")">@remaining.ToString("C2")</strong></div>
-            </div>
-        </div>
+        @if (isMccssOrTransfer)
+        {
+            <h2 class="wiz-h2">You have selected Unrestricted plan</h2>
 
-        <div style="border:1px solid var(--border);border-radius:4px;background:#fff;padding:16px">
-            <div style="display:grid;grid-template-columns:2fr 2fr 2fr 2fr 1fr;gap:12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px">
-                <div>PROVIDER TYPE</div>
-                <div>VENDOR NAME</div>
-                <div>TOTAL AMOUNT</div>
-                <div>NOTES</div>
-                <div></div>
+            <div class="wiz-row" style="margin-bottom: 20px;">
+                <label class="wiz-q">Would you like to assign this amount to vendor? <span class="req">*</span></label>
+                <label class="wiz-radio">
+                    <input type="radio" name="assignv_mccss" checked="@AssignAmountToVendor" @onchange="() => OnMccssAssignAmountToVendorChanged(true)" />
+                    <span>Yes</span>
+                </label>
+                <label class="wiz-radio">
+                    <input type="radio" name="assignv_mccss" checked="@(!AssignAmountToVendor)" @onchange="() => OnMccssAssignAmountToVendorChanged(false)" />
+                    <span>No</span>
+                </label>
             </div>
-            @foreach (var ln in _draft.Services)
-            {
-                var line = ln;
-                <div style="display:grid;grid-template-columns:2fr 2fr 2fr 2fr 1fr;gap:12px;align-items:center;margin-bottom:8px">
-                    <div>
-                        <select class="modal-input" style="font-size:12px;padding:4px" value="@line.Provider" @onchange="@(e => SetProvider(line, e.Value?.ToString()))">
-                            <option value="Independent Support Worker (ISW)">Independent Support Worker (ISW)</option>
-                            <option value="Service Provider (SP)">Service Provider (SP)</option>
-                            <option value="Caregiver or Guardian">Caregiver or Guardian</option>
-                        </select>
-                    </div>
-                    <div>
-                        <select class="modal-input" style="font-size:12px;padding:4px" value="@line.Vendor" @onchange="@(e => { line.Vendor = e.Value?.ToString() ?? "Unassigned"; })">
-                            <option value="Unassigned">Unassigned</option>
-                            @foreach (var v in Vendors.Vendors) { <option value="@v.Name">@v.Name</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <input type="number" min="0" class="modal-input" style="font-size:12px;padding:4px"
-                               value="@(line.Rate == 0 ? "" : line.Rate.ToString("0.##"))"
-                               placeholder="$ 0.00"
-                               @onchange="@(e => { SetLineRate(line, e.Value?.ToString()); line.Units = 1; ResolveGlForLine(line); })" />
-                        @if (line.GlCode > 0)
-                        {
-                            <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@line.GlName">
-                                GL: @line.GlCode
-                            </div>
-                        }
-                    </div>
-                    <div>
-                        <input type="text" class="modal-input" style="font-size:12px;padding:4px" placeholder="Optional notes" @bind="line.Note" />
-                    </div>
-                    <div style="text-align:right">
-                        <button class="btn icon-only" style="color:var(--danger);padding:4px" @onclick="() => RemoveLine(line)">✕</button>
-                    </div>
+        }
+
+        @if (AssignAmountToVendor || _draft.AssignAddlAmountToVendor)
+        {
+            <div class="ft-summary" style="margin-bottom:16px">
+                <div class="ft-summary-head" style="font-weight:600;margin-bottom:8px">Vendor Assignment Summary</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+                    <div>Total Plan Amount: <strong class="mono">@totalPlan.ToString("C2")</strong></div>
+                    <div>Already Assigned: <strong class="mono">@totalCommitted.ToString("C2")</strong></div>
+                    <div>Remaining Funding Available: <strong class="mono" style="color:@(remaining < 0 ? "var(--danger)" : "var(--success)")">@remaining.ToString("C2")</strong></div>
                 </div>
-            }
-            <button class="btn" style="margin-top:8px" @onclick="AddUnrestrictedAssignmentRow">+ Add Vendor Assignment</button>
-        </div>
-    </text>;
+            </div>
 
+            @if (AssignAmountToVendor)
+            {
+                @if (isMccssOrTransfer)
+                {
+                    @foreach (var t in _draft.McsssTypes)
+                    {
+                        var tv = t;
+                        var planAmt = _draft.McsssAmounts.TryGetValue(tv, out var pa) ? pa : 0;
+                        var lines = _draft.Services.Where(s => s.Plan == tv).ToList();
+                        var sectionCommit = lines.Sum(s => s.LineTotalWithHst);
+
+                        <div class="ft-section" style="border:1px solid var(--border);border-radius:4px;margin-bottom:16px;background:#fff">
+                            <div class="ft-section-head" style="padding:12px 16px;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center;font-weight:600;border-bottom:1px solid var(--border)">
+                                <span>Funding Type — @tv</span>
+                                <span style="color:@(sectionCommit > planAmt ? "var(--danger)" : "var(--brand-700)")">
+                                    @sectionCommit.ToString("C2") / $@planAmt.ToString("N0")
+                                </span>
+                            </div>
+                            <div style="padding:12px">
+                                @VendorTableHeader()
+                                @foreach (var ln in lines)
+                                {
+                                    @VendorRow(ln)
+                                }
+                                <button class="btn" style="margin-top:8px" @onclick="() => AddUnrestrictedAssignmentRowForPlan(tv)">+ Add Vendor Assignment</button>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="ft-section" style="border:1px solid var(--border);border-radius:4px;margin-bottom:16px;background:#fff">
+                        <div class="ft-section-head" style="padding:12px 16px;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center;font-weight:600;border-bottom:1px solid var(--border)">
+                            <span>Main Funder — @_draft.MainFunder</span>
+                            <span class="mono font-weight-bold">
+                                @_draft.Services.Where(s => s.Plan == _draft.MainFunder).Sum(s => s.LineTotalWithHst).ToString("C2") / $@NonMccssPlanAmount.ToString("N0")
+                            </span>
+                        </div>
+                        <div style="padding:12px">
+                            @VendorTableHeader()
+                            @foreach (var ln in _draft.Services.Where(s => s.Plan == _draft.MainFunder))
+                            {
+                                @VendorRow(ln)
+                            }
+                            <button class="btn" style="margin-top:8px" @onclick="AddUnrestrictedAssignmentRow">+ Add Vendor Assignment</button>
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_draft.AssignAddlAmountToVendor)
+            {
+                @foreach (var af in _draft.AdditionalFunders)
+                {
+                    var afv = af;
+                    var planAmt = _draft.AddlFunderAmount;
+                    var lines = _draft.Services.Where(s => s.Plan == afv).ToList();
+                    var sectionCommit = lines.Sum(s => s.LineTotalWithHst);
+
+                    <div class="ft-section" style="border:1px solid var(--border);border-radius:4px;margin-bottom:16px;background:#fff">
+                        <div class="ft-section-head" style="padding:12px 16px;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center;font-weight:600;border-bottom:1px solid var(--border)">
+                            <span>Additional Funder — @afv</span>
+                            <span style="color:@(sectionCommit > planAmt ? "var(--danger)" : "var(--brand-700)")">
+                                @sectionCommit.ToString("C2") / $@planAmt.ToString("N0")
+                            </span>
+                        </div>
+                        <div style="padding:12px">
+                            @VendorTableHeader()
+                            @foreach (var ln in lines)
+                            {
+                                @VendorRow(ln)
+                            }
+                            <button class="btn" style="margin-top:8px" @onclick="() => AddUnrestrictedAssignmentRowForPlan(afv)">+ Add Vendor Assignment</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+        else
+        {
+            <div class="wiz-note" style="margin-top:16px">
+                You have chosen not to assign the unrestricted funding amount to any vendor. Click <strong>NEXT</strong> to proceed to the next step.
+            </div>
+        }
+    </text>;
+ 
     private void AddUnrestrictedAssignmentRow()
     {
         var line = new ServiceLine
         {
-            Name = "Unrestricted Allocation",
+            Name = "",
             Plan = (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? (_draft.McsssTypes.FirstOrDefault() ?? "") : _draft.MainFunder,
             Provider = "Independent Support Worker (ISW)",
             Vendor = "Unassigned",
@@ -746,6 +906,77 @@
         _draft.Services.Add(line);
         ResolveGlForLine(line);
     }
+
+    private void AddUnrestrictedAssignmentRowForPlan(string plan)
+    {
+        var line = new ServiceLine
+        {
+            Name = "",
+            Plan = plan,
+            Provider = "Independent Support Worker (ISW)",
+            Vendor = "Unassigned",
+            Unit = "One-time",
+            Rate = 0,
+            Units = 1
+        };
+        _draft.Services.Add(line);
+        ResolveGlForLine(line);
+    }
+
+    private void OnMccssAssignAmountToVendorChanged(bool value)
+    {
+        AssignAmountToVendor = value;
+        if (!value)
+        {
+            _draft.Services.Clear();
+        }
+    }
+
+    private RenderFragment VendorTableHeader() => @<text>
+        <div style="display:grid;grid-template-columns:3fr 3fr 2fr 3fr 0.5fr;gap:12px;font-weight:600;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px">
+            <div>PROVIDER TYPE</div>
+            <div>VENDOR NAME</div>
+            <div>TOTAL AMOUNT</div>
+            <div>NOTES</div>
+            <div></div>
+        </div>
+    </text>;
+
+    private RenderFragment VendorRow(ServiceLine line) => @<text>
+        <div style="display:grid;grid-template-columns:3fr 3fr 2fr 3fr 0.5fr;gap:12px;align-items:center;margin-bottom:8px">
+            <div>
+                <select class="modal-input" style="font-size:12px;padding:4px" value="@line.Provider" @onchange="@(e => SetProvider(line, e.Value?.ToString()))">
+                    <option value="Independent Support Worker (ISW)">Independent Support Worker (ISW)</option>
+                    <option value="Service Provider (SP)">Service Provider (SP)</option>
+                    <option value="Caregiver or Guardian">Caregiver or Guardian</option>
+                </select>
+            </div>
+            <div>
+                <select class="modal-input" style="font-size:12px;padding:4px" value="@line.Vendor" @onchange="@(e => { line.Vendor = e.Value?.ToString() ?? "Unassigned"; })">
+                    <option value="Unassigned">Unassigned</option>
+                    @foreach (var v in Vendors.Vendors) { <option value="@v.Name">@v.Name</option> }
+                </select>
+            </div>
+            <div>
+                <input type="number" min="0" class="modal-input" style="font-size:12px;padding:4px"
+                       value="@(line.Rate == 0 ? "" : line.Rate.ToString("0.##"))"
+                       placeholder="$ 0.00"
+                       @onchange="@(e => { SetLineRate(line, e.Value?.ToString()); line.Units = 1; ResolveGlForLine(line); })" />
+                @if (line.GlCode > 0)
+                {
+                    <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@line.GlName">
+                        GL: @line.GlCode
+                    </div>
+                }
+            </div>
+            <div>
+                <input type="text" class="modal-input" style="font-size:12px;padding:4px" placeholder="Optional notes" @bind="line.Note" />
+            </div>
+            <div style="text-align:right">
+                <button class="btn icon-only" style="color:var(--danger);padding:4px" @onclick="() => RemoveLine(line)">✕</button>
+            </div>
+        </div>
+    </text>;
 
     // ---------- Step: Plan Amount (non-MCCSS main funder) ----------
     private RenderFragment StepPlanAmount() => @<text>
@@ -830,6 +1061,14 @@
                 <div class="rev-h">2 · Funders & accountability</div>
                 <div class="rev-k"><span>Main funder</span><span>@_draft.MainFunder</span></div>
                 <div class="rev-k"><span>Additional funders</span><span>@(_draft.AdditionalFunders.Count == 0 ? "—" : string.Join(", ", _draft.AdditionalFunders))</span></div>
+                @if (_draft.AdditionalFunders.Count > 0)
+                {
+                    <div class="rev-k"><span>Additional funding</span><span class="mono">@_draft.AddlFunderAmount.ToString("C")</span></div>
+                    @if (_draft.AssignAddlAmountToVendor)
+                    {
+                        <div class="rev-k"><span>Additional vendor assignment</span><span class="mono">@_draft.AddlFunderVendor.ToString("C")</span></div>
+                    }
+                }
                 @if (_draft.MainFunder == "MCCSS" || IsTransferPlan)
                 {
                     <div class="rev-k"><span>SCS team</span><span>@_draft.ScsTeam</span></div>
@@ -1000,13 +1239,10 @@
 
     private IEnumerable<string> GetCompatibleSupportTypesForStep(string plan)
     {
-        var allCompatible = GlMappingService.GetCompatibleSupportTypes(plan, _draft.McsssPlanType);
-        if (_draft.McsssPlanType == "Unrestricted")
-        {
-            return allCompatible;
-        }
+        var allCompatible = GlMappingService.GetCompatibleSupportTypes(plan, "Restricted");
 
         var normalizedPlan = GlMappingService.NormalizeFundingType(plan);
+        IEnumerable<string> restrictedAllowed = allCompatible;
 
         if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
         {
@@ -1022,7 +1258,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Passport Program", StringComparison.OrdinalIgnoreCase))
             {
@@ -1036,9 +1272,10 @@
                     "Structured Community Activities",
                     "Structured Seasonal Programs",
                     "Live Events, Admissions & Tickets",
-                    "Client Travel"
+                    "Client Travel",
+                    "Passport Administration"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("MCCSS Fiscal Residential Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1049,7 +1286,7 @@
                         "Prescription Medication/Supplies",
                         "Presciption Medication/Supplies"
                     };
-                    return allCompatible.Where(x => allowed.Contains(x));
+                    restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
                 }
                 else
                 {
@@ -1062,12 +1299,11 @@
                         "Presciption Medication/Supplies",
                         "Client Travel"
                     };
-                    return allCompatible.Where(x => allowed.Contains(x));
+                    restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
                 }
             }
         }
-
-        if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
+        else if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
         {
             if (normalizedPlan.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
             {
@@ -1076,32 +1312,33 @@
                     "Prescription Medication/Supplies",
                     "Presciption Medication/Supplies"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
-
-            var allowedCsn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            else
             {
-                "Daily Living Support",
-                "Individualized Staffing",
-                "In Home Respite",
-                "Out of Home Respite",
-                "Nursing Care",
-                "Clinical/Behaviour Supports",
-                "Assessment",
-                "Assessments",
-                "Prescription Medication/Supplies",
-                "Presciption Medication/Supplies",
-                "Structured Community Activities",
-                "Structured Seasonal Programs",
-                "Client Travel",
-                "Parent Accommodation (Standard Room Only)",
-                "Parent Travel",
-                "Support Worker Travel"
-            };
-            return allCompatible.Where(x => allowedCsn.Contains(x));
+                var allowedCsn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Daily Living Support",
+                    "Individualized Staffing",
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Nursing Care",
+                    "Clinical/Behaviour Supports",
+                    "Assessment",
+                    "Assessments",
+                    "Prescription Medication/Supplies",
+                    "Presciption Medication/Supplies",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Client Travel",
+                    "Parent Accommodation (Standard Room Only)",
+                    "Parent Travel",
+                    "Support Worker Travel"
+                };
+                restrictedAllowed = allCompatible.Where(x => allowedCsn.Contains(x));
+            }
         }
-
-        if (_draft.FundingTypeChoice == "Temporary funding (in-year support)")
+        else if (_draft.FundingTypeChoice == "Temporary funding (in-year support)")
         {
             if (normalizedPlan.Equals("Historical Respite Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1114,7 +1351,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("MCCSS Fiscal Community Participation Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1125,7 +1362,7 @@
                     "Permanent Compensation Enhancement",
                     "Block Program Funding Subsidy"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("MCCSS Fiscal Residential Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1137,15 +1374,24 @@
                     "Base Increase Adjustment",
                     "Permanent Compensation Enhancement"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Passport Program", StringComparison.OrdinalIgnoreCase))
             {
                 var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
+                    "Daily Living Support",
+                    "Individualized Staffing",
+                    "In Home Respite",
+                    "Out of Home Respite",
+                    "Centre Based Day Programming",
+                    "Structured Community Activities",
+                    "Structured Seasonal Programs",
+                    "Live Events, Admissions & Tickets",
+                    "Client Travel",
                     "Passport Administration"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1158,7 +1404,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Temporary Flexible Funding  Allocation (Adult) - English", StringComparison.OrdinalIgnoreCase) ||
                      normalizedPlan.Equals("Temporary Flexible Funding  Allocation (Adult) - French", StringComparison.OrdinalIgnoreCase))
@@ -1172,7 +1418,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
             {
@@ -1184,7 +1430,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Temporary Funding Allocation (Adult) - English", StringComparison.OrdinalIgnoreCase) ||
                      normalizedPlan.Equals("Temporary Funding Allocation (Adult) - French", StringComparison.OrdinalIgnoreCase))
@@ -1198,7 +1444,7 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
             else if (normalizedPlan.Equals("Temporary Funding Allocation - Children's", StringComparison.OrdinalIgnoreCase))
             {
@@ -1210,11 +1456,18 @@
                     "Structured Seasonal Programs",
                     "Client Travel"
                 };
-                return allCompatible.Where(x => allowed.Contains(x));
+                restrictedAllowed = allCompatible.Where(x => allowed.Contains(x));
             }
         }
 
-        return allCompatible;
+        if (_draft.McsssPlanType == "Unrestricted")
+        {
+            var list = new List<string> { "Unrestricted Planning Accounts" };
+            list.AddRange(restrictedAllowed);
+            return list;
+        }
+
+        return restrictedAllowed;
     }
 
     private void ResolveAllGl()
@@ -1234,9 +1487,10 @@
     private void AddMcsssType(string t)
     {
         if (string.IsNullOrEmpty(t) || _draft.McsssTypes.Contains(t)) return;
+        var currentPlanType = _draft.McsssPlanType;
         _draft.McsssTypes.Add(t);
         if (!_draft.McsssAmounts.ContainsKey(t)) _draft.McsssAmounts[t] = 0;
-        if (!_draft.McsssRestrictions.ContainsKey(t)) _draft.McsssRestrictions[t] = "Restricted";
+        if (!_draft.McsssRestrictions.ContainsKey(t)) _draft.McsssRestrictions[t] = currentPlanType;
     }
 
     private void AddMcsssTypeIfNew(string? t)
@@ -1273,10 +1527,12 @@
                   && !string.IsNullOrWhiteSpace(_draft.CurrentSituationOutcome)
                   && !string.IsNullOrWhiteSpace(_draft.ImpactAndAlternatives),
             "Funder Selection" => !string.IsNullOrEmpty(_draft.MainFunder),
+            "Additional Funder Details" => _draft.AddlFunderAmount > 0
+                  && (!_draft.AssignAddlAmountToVendor || (_draft.AddlFunderVendor > 0 && _draft.AddlFunderVendor <= _draft.AddlFunderAmount)),
             "SCS Team Accountable" => !string.IsNullOrEmpty(_draft.ScsTeam),
             "Select Funding Types" => _draft.McsssTypes.Count > 0 && _draft.McsssTypes.All(t => _draft.McsssAmounts.TryGetValue(t, out var v) && v > 0),
             "Service Line Allocation" => _draft.Services.Count > 0 && _draft.Services.All(s => !string.IsNullOrEmpty(s.Name)),
-            "Vendor Assignment" => _draft.Services.Count > 0 && _draft.Services.All(s => !string.IsNullOrEmpty(s.Vendor)),
+            "Vendor Assignment" => (!AssignAmountToVendor && !_draft.AssignAddlAmountToVendor) || (_draft.Services.Count > 0 && _draft.Services.All(s => !string.IsNullOrEmpty(s.Vendor))),
             "Plan Amount" => NonMccssPlanAmount > 0,
             "File Upload" => true,
             "Review & Submit" => true,
@@ -1316,6 +1572,26 @@
                 };
             }
         }
+
+        if (_draft.AdditionalFunders.Count > 0 && !_draft.AssignAddlAmountToVendor)
+        {
+            foreach (var af in _draft.AdditionalFunders)
+            {
+                if (!_draft.Services.Any(s => s.Plan == af && s.Vendor == "Unassigned"))
+                {
+                    _draft.Services.Add(new ServiceLine
+                    {
+                        Name = "Unrestricted Allocation",
+                        Plan = af,
+                        Provider = "Independent Support Worker (ISW)",
+                        Vendor = "Unassigned",
+                        Unit = "One-time",
+                        Rate = _draft.AddlFunderAmount,
+                        Units = 1
+                    });
+                }
+            }
+        }
     }
 
     private void SaveDraft()
@@ -1330,7 +1606,13 @@
     {
         PrepareDraftForSave();
         var id = Fc.CreateFromWizard(_draft, submitOnFinish: _draft.SubmitOnFinish);
-        Toasts.Show(ToastKind.Success, _draft.SubmitOnFinish ? $"FC {id} submitted for Special Approval" : $"Draft FC {id} saved");
+        var label = "submitted for Approval";
+        if (_draft.FundingTypeChoice == "An In-Year MYSLP transfer plan" || _draft.FundingTypeChoice == "A plan for someone transferring from another region or agency")
+            label = "submitted for Ministry Approval";
+        else if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
+            label = "submitted for CSN Youth Gate";
+
+        Toasts.Show(ToastKind.Success, _draft.SubmitOnFinish ? $"FC {id} {label}" : $"Draft FC {id} saved");
         Nav.NavigateTo("funding-commitments");
     }
 

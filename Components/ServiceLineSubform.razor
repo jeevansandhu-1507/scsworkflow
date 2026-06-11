@@ -42,15 +42,15 @@
                         @foreach (var t in PlanTypes) { <option value="@t">@t</option> }
                     </select>
                 </div>
-            }
 
-            <div class="sfd-row">
-                <label class="sfd-lbl">Service Name <span class="req">*</span></label>
-                <select class="sfd-input" @bind="_line.Name">
-                    <option value="">Select your answer</option>
-                    @foreach (var s in Catalog.WizardServiceNames) { <option value="@s">@s</option> }
-                </select>
-            </div>
+                <div class="sfd-row">
+                    <label class="sfd-lbl">Service Name <span class="req">*</span></label>
+                    <select class="sfd-input" @bind="_line.Name">
+                        <option value="">Select your answer</option>
+                        @foreach (var s in Catalog.WizardServiceNames) { <option value="@s">@s</option> }
+                    </select>
+                </div>
+            }
 
             <div class="sfd-row">
                 <label class="sfd-lbl">Provider Type <span class="req">*</span></label>
@@ -206,7 +206,7 @@
     private bool CanSave()
     {
         if (IsRestricted && string.IsNullOrEmpty(_line.Plan)) return false;
-        if (string.IsNullOrEmpty(_line.Name)) return false;
+        if (IsRestricted && string.IsNullOrEmpty(_line.Name)) return false;
         if (string.IsNullOrEmpty(_line.Provider)) return false;
         if (string.IsNullOrEmpty(_line.Vendor)) return false;
         if (string.IsNullOrEmpty(_line.Unit)) return false;
@@ -215,6 +215,10 @@
 
     private async Task Save()
     {
+        if (!IsRestricted)
+        {
+            _line.Name = "";
+        }
         if (!CanSave()) return;
         _open = false;
         await OnSave.InvokeAsync(_line);

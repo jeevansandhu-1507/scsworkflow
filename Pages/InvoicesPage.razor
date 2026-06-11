@@ -157,7 +157,10 @@
                     <thead>
                         <tr>
                             <th style="width:30%">Description</th>
-                            <th>Support type (from FC)</th>
+                            @if (!IsManualFcUnrestricted)
+                            {
+                                <th>Support type (from FC)</th>
+                            }
                             <th class="num" style="width:80px">Qty</th>
                             <th class="num" style="width:110px">Rate</th>
                             <th class="num" style="width:120px">Amount</th>
@@ -167,7 +170,7 @@
                     <tbody>
                         @if (_manualLines.Count == 0)
                         {
-                            <tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No line items yet. Click <strong>+ Add Line</strong> below.</td></tr>
+                            <tr><td colspan="@(IsManualFcUnrestricted ? 5 : 6)" class="muted" style="text-align:center;padding:24px">No line items yet. Click <strong>+ Add Line</strong> below.</td></tr>
                         }
                         @for (int i = 0; i < _manualLines.Count; i++)
                         {
@@ -178,25 +181,28 @@
                                     <input class="ft-input" placeholder="Support hours, mileage…"
                                            @bind="ln.Description" />
                                 </td>
-                                <td>
-                                    @if (availSvcs.Count == 0)
-                                    {
-                                        <input class="ft-input" placeholder="Pick an FC to enable" disabled
-                                               @bind="ln.SupportType" />
-                                    }
-                                    else
-                                    {
-                                        <select class="ft-input"
-                                                @bind="ln.SupportType"
-                                                @bind:after="() => OnLineSupportPicked(ix)">
-                                            <option value="">— Select —</option>
-                                            @foreach (var s in availSvcs)
-                                            {
-                                                <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
-                                            }
-                                        </select>
-                                    }
-                                </td>
+                                @if (!IsManualFcUnrestricted)
+                                {
+                                    <td>
+                                        @if (availSvcs.Count == 0)
+                                        {
+                                            <input class="ft-input" placeholder="Pick an FC to enable" disabled
+                                                   @bind="ln.SupportType" />
+                                        }
+                                        else
+                                        {
+                                            <select class="ft-input"
+                                                    @bind="ln.SupportType"
+                                                    @bind:after="() => OnLineSupportPicked(ix)">
+                                                <option value="">— Select —</option>
+                                                @foreach (var s in availSvcs)
+                                                {
+                                                    <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                                                }
+                                            </select>
+                                        }
+                                    </td>
+                                }
                                 <td>
                                     <input type="number" min="0" step="0.01" class="ft-input num"
                                            value="@(ln.Quantity == 0 ? "" : ln.Quantity.ToString("0.##"))"
@@ -217,7 +223,7 @@
                         @if (_manualLines.Count > 0)
                         {
                             <tr style="background:var(--brand-25);font-weight:600">
-                                <td colspan="4" style="text-align:right">Total</td>
+                                <td colspan="@(IsManualFcUnrestricted ? 3 : 4)" style="text-align:right">Total</td>
                                 <td class="num mono">@Money(_manualLines.Sum(l => l.Amount))</td>
                                 <td></td>
                             </tr>
@@ -322,13 +328,40 @@
         if (match != null) _rate = match.Rate;
     }
 
+    private bool IsManualFcUnrestricted
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_manualFc)) return false;
+            var fc = Fc.FindByCommitId(_manualFc);
+            return fc != null && fc.PlanType == "Unrestricted";
+        }
+    }
+
     private void OnManualFcPicked()
     {
         var svcs = ManualAvailableServices().ToList();
-        if (svcs.Count > 0)
+        var isUnrestricted = IsManualFcUnrestricted;
+        if (isUnrestricted)
+        {
+            _support = "";
+            foreach (var ln in _manualLines)
+            {
+                ln.SupportType = "";
+            }
+        }
+        else if (svcs.Count > 0)
         {
             _support = svcs[0].Name;
             _rate = svcs[0].Rate;
+            foreach (var ln in _manualLines)
+            {
+                if (string.IsNullOrEmpty(ln.SupportType) || !svcs.Any(s => s.Name == ln.SupportType))
+                {
+                    ln.SupportType = svcs[0].Name;
+                    ln.Rate = svcs[0].Rate;
+                }
+            }
         }
         else
         {
@@ -340,12 +373,13 @@
     {
         var svcs = ManualAvailableServices().ToList();
         var first = svcs.FirstOrDefault();
+        var isUnrestricted = IsManualFcUnrestricted;
         _manualLines.Add(new InvoiceLine
         {
             Description = "Support hours",
-            SupportType = first?.Name ?? "",
+            SupportType = isUnrestricted ? "" : (first?.Name ?? ""),
             Quantity = 1,
-            Rate = first?.Rate ?? 0
+            Rate = isUnrestricted ? 0 : (first?.Rate ?? 0)
         });
     }
 

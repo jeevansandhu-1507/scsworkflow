@@ -1,6 +1,7 @@
 @inject InvoicingService Inv
 @inject UserContextService UserCtx
 @inject ToastService Toasts
+@inject FundingCommitmentService Fc
 
 <div class="full-overlay @(_open ? "open" : "")" @onclick="Close"></div>
 <aside class="full-view @(_open ? "open" : "")" aria-hidden="@(_open ? "false" : "true")">
@@ -63,21 +64,33 @@
                 <div style="overflow-x:auto">
                     <table class="data-table">
                         <thead>
-                            <tr><th>Description</th><th>Support type</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>
+                            <tr>
+                                <th>Description</th>
+                                @if (!IsInvoiceUnrestricted(inv))
+                                {
+                                    <th>Support type</th>
+                                }
+                                <th class="num">Qty</th>
+                                <th class="num">Rate</th>
+                                <th class="num">Amount</th>
+                            </tr>
                         </thead>
                         <tbody>
                             @foreach (var ln in inv.Lines)
                             {
                                 <tr>
                                     <td>@ln.Description</td>
-                                    <td class="muted">@ln.SupportType</td>
+                                    @if (!IsInvoiceUnrestricted(inv))
+                                    {
+                                        <td class="muted">@ln.SupportType</td>
+                                    }
                                     <td class="num mono">@ln.Quantity.ToString("0.##")</td>
                                     <td class="num mono">@ln.Rate.ToString("C2")</td>
                                     <td class="num mono">@ln.Amount.ToString("C2")</td>
                                 </tr>
                             }
                             <tr style="background:var(--brand-25);font-weight:600">
-                                <td colspan="4" class="num">Total</td>
+                                <td colspan="@(IsInvoiceUnrestricted(inv) ? 3 : 4)" class="num">Total</td>
                                 <td class="num mono">@inv.Total.ToString("C2")</td>
                             </tr>
                         </tbody>
@@ -96,6 +109,13 @@
 @code {
     private bool _open;
     private Invoice? _invoice;
+
+    private bool IsInvoiceUnrestricted(Invoice? inv)
+    {
+        if (inv == null || string.IsNullOrEmpty(inv.FcId)) return false;
+        var fc = Fc.FindByCommitId(inv.FcId);
+        return fc != null && fc.PlanType == "Unrestricted";
+    }
 
     public bool IsOpen => _open;
 

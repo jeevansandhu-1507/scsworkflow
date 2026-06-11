@@ -25,6 +25,9 @@ public class FcWizardDraft
     // Step 2 — Funders
     public string MainFunder { get; set; } = "MCCSS";
     public List<string> AdditionalFunders { get; set; } = new();
+    public decimal AddlFunderAmount { get; set; }
+    public bool AssignAddlAmountToVendor { get; set; }
+    public decimal AddlFunderVendor { get; set; }
 
     // Step 3 — SCS team accountable
     public string ScsTeam { get; set; } = "";

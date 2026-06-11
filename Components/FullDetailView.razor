@@ -135,13 +135,16 @@
                     }
                 </select>
             </div>
-            <div class="modal-row">
-                <label class="modal-lbl">Service type <span class="req">*</span></label>
-                <select class="modal-input" @bind="_avService">
-                    <option value="">— Select service type —</option>
-                    @foreach (var n in Catalog.WizardServiceNames) { <option value="@n">@n</option> }
-                </select>
-            </div>
+            @if (_row.PlanType != "Unrestricted")
+            {
+                <div class="modal-row">
+                    <label class="modal-lbl">Service type <span class="req">*</span></label>
+                    <select class="modal-input" @bind="_avService">
+                        <option value="">— Select service type —</option>
+                        @foreach (var n in Catalog.WizardServiceNames) { <option value="@n">@n</option> }
+                    </select>
+                </div>
+            }
             @if (_row.MccssTypes.Count > 1)
             {
                 <div class="modal-row">
@@ -172,7 +175,7 @@
         <footer class="modal-foot">
             <button class="btn ghost" @onclick="() => _associateOpen = false">Cancel</button>
             <button class="btn primary" @onclick="ConfirmAssociate"
-                    disabled="@(string.IsNullOrEmpty(_avVendor) || string.IsNullOrEmpty(_avService))">
+                    disabled="@(string.IsNullOrEmpty(_avVendor) || (string.IsNullOrEmpty(_avService) && _row.PlanType != "Unrestricted"))">
                 Associate &amp; add line
             </button>
         </footer>
@@ -299,10 +302,10 @@
 
     private void ConfirmAssociate()
     {
-        if (_row == null || string.IsNullOrEmpty(_avVendor) || string.IsNullOrEmpty(_avService)) return;
+        if (_row == null || string.IsNullOrEmpty(_avVendor) || (string.IsNullOrEmpty(_avService) && _row.PlanType != "Unrestricted")) return;
         _row.Services.Add(new ServiceLine
         {
-            Name = _avService,
+            Name = _row.PlanType == "Unrestricted" ? "" : _avService,
             Plan = string.IsNullOrEmpty(_avPlan) ? (_row.MccssTypes.FirstOrDefault() ?? "") : _avPlan,
             Provider = Vendors.Vendors.FirstOrDefault(v => v.Name == _avVendor)?.Type == VendorType.Sp
                 ? "Service Provider (SP)"
@@ -429,7 +432,11 @@
                         <table class="fv-svc-table">
                             <thead>
                                 <tr>
-                                    <th>Service Name</th><th>Plan Type</th><th>Provider Type</th><th>Vendor</th>
+                                    @if (r.PlanType != "Unrestricted")
+                                    {
+                                        <th>Service Name</th>
+                                    }
+                                    <th>Plan Type</th><th>Provider Type</th><th>Vendor</th>
                                     <th>Unit</th><th>Rate</th><th>Units</th><th>Total</th><th>Note</th>
                                 </tr>
                             </thead>
@@ -438,15 +445,18 @@
                                 {
                                     var lt = sv.LineTotal;
                                     <tr>
-                                        <td>
-                                            @(string.IsNullOrEmpty(sv.Name) ? (MarkupString)"<span class=\"muted\">—</span>" : (MarkupString)sv.Name)
-                                            @if (sv.GlCode > 0)
-                                            {
-                                                <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@sv.GlName">
-                                                    GL: @sv.GlCode
-                                                </div>
-                                            }
-                                        </td>
+                                        @if (r.PlanType != "Unrestricted")
+                                        {
+                                            <td>
+                                                @(string.IsNullOrEmpty(sv.Name) ? (MarkupString)"<span class=\"muted\">—</span>" : (MarkupString)sv.Name)
+                                                @if (sv.GlCode > 0)
+                                                {
+                                                    <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@sv.GlName">
+                                                        GL: @sv.GlCode
+                                                    </div>
+                                                }
+                                            </td>
+                                        }
                                         <td><span class="pill">@(string.IsNullOrEmpty(sv.Plan) ? "—" : sv.Plan)</span></td>
                                         <td>@sv.Provider</td>
                                         <td>
@@ -460,7 +470,15 @@
                                             }
                                         </td>
                                         <td>@sv.Unit</td>
-                                        <td class="num">@(sv.Rate != 0 ? Money(sv.Rate) : "—")</td>
+                                        <td class="num">
+                                            @(sv.Rate != 0 ? Money(sv.Rate) : "—")
+                                            @if (r.PlanType == "Unrestricted" && sv.GlCode > 0)
+                                            {
+                                                <div style="font-size:10px;color:var(--brand-700);margin-top:2px;font-family:monospace" title="@sv.GlName">
+                                                    GL: @sv.GlCode
+                                                </div>
+                                            }
+                                        </td>
                                         <td class="num">@(sv.Units != 0 ? sv.Units.ToString("0.##") : "—")</td>
                                         <td class="num">@(lt != 0 ? Money(lt) : "—")</td>
                                         <td class="muted">@sv.Note</td>
@@ -474,7 +492,10 @@
                                     if (remainder > 0)
                                     {
                                         <tr class="unassigned">
-                                            <td class="muted">—</td>
+                                            @if (r.PlanType != "Unrestricted")
+                                            {
+                                                <td class="muted">—</td>
+                                            }
                                             <td><span class="pill">@t</span></td>
                                             <td class="muted">—</td>
                                             <td><span class="pill unassigned-pill">Unassigned</span></td>

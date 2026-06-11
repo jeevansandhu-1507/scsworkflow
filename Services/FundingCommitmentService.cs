@@ -253,12 +253,12 @@ public class FundingCommitmentService
         }
         else
         {
-            r.Status = CommitmentStatus.Special;
+            r.Status = CommitmentStatus.Pending;
             r.SubmittedAt = DateTime.Now;
             r.SubmittedBy = _users?.Effective.FullName;
-            Audit("FC.Submit", r, before, $"{Display(r)} submitted for Special Approval");
+            Audit("FC.Submit", r, before, $"{Display(r)} submitted for Approval");
             Notify(NotificationLevel.Info, "FC submitted",
-                $"{Display(r)} awaits Special Approver review.",
+                $"{Display(r)} awaits Approval.",
                 targetRole: AppRole.SpecialApprover,
                 link: "/", entityType: "FundingCommitment", entityId: r.CommitId);
         }
@@ -800,6 +800,8 @@ public class FundingCommitmentService
             Outcome = d.CurrentSituationOutcome,
             AltSources = d.ImpactAndAlternatives,
             Attachments = d.Attachments.Count,
+            AddlFunderAmount = d.AddlFunderAmount,
+            AddlFunderVendor = d.AddlFunderVendor,
             Services = d.Services.Count > 0 ? d.Services.Select(s => s.Clone()).ToList()
                 : new List<ServiceLine>
                 {

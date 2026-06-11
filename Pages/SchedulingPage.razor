@@ -108,25 +108,28 @@
                         }
                     </select>
                 </div>
-                <div class="modal-row">
-                    <label class="modal-lbl">Support type (from this FC)</label>
-                    <select class="modal-input" @bind="_newSupport" @bind:after="OnSupportPicked">
-                        @{
-                            var svcs = AvailableServicesForFc().ToList();
-                        }
-                        @if (svcs.Count == 0)
-                        {
-                            <option value="">— Pick an FC first —</option>
-                        }
-                        else
-                        {
-                            @foreach (var s in svcs)
-                            {
-                                <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                @if (!IsNewFcUnrestricted)
+                {
+                    <div class="modal-row">
+                        <label class="modal-lbl">Support type (from this FC)</label>
+                        <select class="modal-input" @bind="_newSupport" @bind:after="OnSupportPicked">
+                            @{
+                                var svcs = AvailableServicesForFc().ToList();
                             }
-                        }
-                    </select>
-                </div>
+                            @if (svcs.Count == 0)
+                            {
+                                <option value="">— Pick an FC first —</option>
+                            }
+                            else
+                            {
+                                @foreach (var s in svcs)
+                                {
+                                    <option value="@s.Name">@s.Name · @s.Rate.ToString("C")/@s.Unit</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                }
                 <div class="modal-row">
                     <label class="modal-lbl">Date</label>
                     <input type="date" class="modal-input"
@@ -196,7 +199,10 @@
                         <th>Date</th>
                         <th>Start</th>
                         <th>End</th>
-                        <th>Support type</th>
+                        @if (!IsBulkFcUnrestricted)
+                        {
+                            <th>Support type</th>
+                        }
                         <th class="num">Rate</th>
                         <th class="num">Hrs</th>
                         <th class="num">Total</th>
@@ -227,15 +233,18 @@
                                        value="@row.End.ToString(@"hh\:mm")"
                                        @onchange="@(e => row.End = TimeSpan.TryParse(e.Value?.ToString(), out var ts) ? ts : new TimeSpan(11,0,0))" />
                             </td>
-                            <td>
-                                <select class="bulk-input" @bind="row.SupportType" @bind:after="() => OnBulkSupportPicked(row)">
-                                    <option value="">— Pick FC first —</option>
-                                    @foreach (var s in BulkAvailableServices())
-                                    {
-                                        <option value="@s.Name">@s.Name</option>
-                                    }
-                                </select>
-                            </td>
+                            @if (!IsBulkFcUnrestricted)
+                            {
+                                <td>
+                                    <select class="bulk-input" @bind="row.SupportType" @bind:after="() => OnBulkSupportPicked(row)">
+                                        <option value="">— Pick FC first —</option>
+                                        @foreach (var s in BulkAvailableServices())
+                                        {
+                                            <option value="@s.Name">@s.Name</option>
+                                        }
+                                    </select>
+                                </td>
+                            }
                             <td>
                                 <input type="number" min="0" step="0.01" class="bulk-input num"
                                        value="@row.Rate"
@@ -318,7 +327,10 @@
                         <th>Time</th>
                         <th>Client / Project</th>
                         <th>Vendor</th>
-                        <th>Support type</th>
+                        @if (ShowSupportTypeInShiftList)
+                        {
+                            <th>Support type</th>
+                        }
                         <th class="num">Hours</th>
                         <th class="num">Total</th>
                         <th>Status</th>
@@ -333,7 +345,10 @@
                             <td class="mono">@s.Start.ToString(@"hh\:mm")–@s.End.ToString(@"hh\:mm")</td>
                             <td>@s.ClientOrProjectName</td>
                             <td>@s.VendorName</td>
-                            <td>@s.SupportType</td>
+                            @if (ShowSupportTypeInShiftList)
+                            {
+                                <td>@s.SupportType</td>
+                            }
                             <td class="num mono">@s.Hours</td>
                             <td class="num mono">@(s.Total.ToString("C"))</td>
                             <td><span class="status-pill @ShiftClass(s.Status)">@s.Status</span></td>
@@ -403,17 +418,28 @@
         }
     }
 
+    private bool IsBulkFcUnrestricted
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_bulkFc)) return false;
+            var fc = Fc.FindByCommitId(_bulkFc);
+            return fc != null && fc.PlanType == "Unrestricted";
+        }
+    }
+
     private void AddBulkRow()
     {
         var svcs = BulkAvailableServices().ToList();
         var first = svcs.FirstOrDefault();
+        var isUnrestricted = IsBulkFcUnrestricted;
         _bulkRows.Add(new BulkShiftRow
         {
             Date = DateTime.Today,
             Start = new TimeSpan(9, 0, 0),
             End = new TimeSpan(11, 0, 0),
-            SupportType = first?.Name ?? "",
-            Rate = first?.Rate ?? 45
+            SupportType = isUnrestricted ? "" : (first?.Name ?? ""),
+            Rate = isUnrestricted ? (first?.Rate ?? 45) : (first?.Rate ?? 45)
         });
     }
 
@@ -436,9 +462,15 @@
     {
         var svcs = BulkAvailableServices().ToList();
         var first = svcs.FirstOrDefault();
+        var isUnrestricted = IsBulkFcUnrestricted;
         foreach (var row in _bulkRows)
         {
-            if (string.IsNullOrEmpty(row.SupportType) || !svcs.Any(s => s.Name == row.SupportType))
+            if (isUnrestricted)
+            {
+                row.SupportType = "";
+                row.Rate = first?.Rate ?? row.Rate;
+            }
+            else if (string.IsNullOrEmpty(row.SupportType) || !svcs.Any(s => s.Name == row.SupportType))
             {
                 row.SupportType = first?.Name ?? "";
                 row.Rate = first?.Rate ?? row.Rate;
@@ -458,7 +490,7 @@
     private bool CanSaveBulk() =>
         !string.IsNullOrEmpty(_bulkFc)
         && _bulkRows.Count > 0
-        && _bulkRows.All(r => !string.IsNullOrEmpty(r.SupportType) && r.End > r.Start && r.Rate > 0);
+        && _bulkRows.All(r => (IsBulkFcUnrestricted || !string.IsNullOrEmpty(r.SupportType)) && r.End > r.Start && r.Rate > 0);
 
     private void SaveBulk()
     {
@@ -471,6 +503,7 @@
         if (UserCtx.IsVendor && UserCtx.Effective.LinkedVendorId == "v-isw-01") vendorName = "Ima Worker";
 
         var count = 0;
+        var isUnrestricted = IsBulkFcUnrestricted;
         foreach (var r in _bulkRows)
         {
             Sched.Add(new Shift
@@ -479,7 +512,7 @@
                 VendorId = UserCtx.Effective.LinkedVendorId ?? "v-isw-01",
                 VendorName = vendorName,
                 ClientOrProjectName = fc.ClientName,
-                SupportType = r.SupportType,
+                SupportType = isUnrestricted ? "" : r.SupportType,
                 Date = r.Date,
                 Start = r.Start,
                 End = r.End,
@@ -543,10 +576,25 @@
         return candidates.Any(c => string.Equals(c, vendorNameOnLine, StringComparison.OrdinalIgnoreCase));
     }
 
+    private bool IsNewFcUnrestricted
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_newFc)) return false;
+            var fc = Fc.FindByCommitId(_newFc);
+            return fc != null && fc.PlanType == "Unrestricted";
+        }
+    }
+
     private void OnFcPicked()
     {
         var svcs = AvailableServicesForFc().ToList();
-        if (svcs.Count > 0)
+        if (IsNewFcUnrestricted)
+        {
+            _newSupport = "";
+            _newRate = svcs.FirstOrDefault()?.Rate ?? 45;
+        }
+        else if (svcs.Count > 0)
         {
             _newSupport = svcs[0].Name;
             _newRate = svcs[0].Rate;
@@ -565,7 +613,7 @@
     }
 
     private bool CanAddShift() =>
-        !string.IsNullOrEmpty(_newFc) && !string.IsNullOrEmpty(_newSupport) && _newEnd > _newStart && _newRate > 0;
+        !string.IsNullOrEmpty(_newFc) && (IsNewFcUnrestricted || !string.IsNullOrEmpty(_newSupport)) && _newEnd > _newStart && _newRate > 0;
 
     private void AddShift()
     {
@@ -582,7 +630,7 @@
             VendorId = UserCtx.Effective.LinkedVendorId ?? "v-isw-01",
             VendorName = vendorName,
             ClientOrProjectName = fc.ClientName,
-            SupportType = _newSupport,
+            SupportType = IsNewFcUnrestricted ? "" : _newSupport,
             Date = _newDate,
             Start = _newStart,
             End = _newEnd,
@@ -601,6 +649,19 @@
         L.OnChange += R;
         UserCtx.OnChange += R;
         ActiveCtx.OnChange += R;
+    }
+
+    private bool ShowSupportTypeInShiftList
+    {
+        get
+        {
+            var list = Filtered().ToList();
+            if (list.Count == 0) return true;
+            return list.Any(x => {
+                var fc = Fc.FindByCommitId(x.FcId);
+                return fc == null || fc.PlanType != "Unrestricted";
+            });
+        }
     }
 
     private void R() => InvokeAsync(StateHasChanged);
