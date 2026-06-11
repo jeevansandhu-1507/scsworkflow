@@ -229,7 +229,7 @@ public class FundingCommitmentService
         if (r == null || r.Status != CommitmentStatus.Draft) return;
         var before = r.Status;
         
-        if (r.FundingType == "In-Year MYSLP Residential" || r.FundingType == "Regional / TPR transfer")
+        if (r.FundingType == "An In-Year MYSLP transfer plan" || r.FundingType == "A plan for someone transferring from another region or agency")
         {
             r.Status = CommitmentStatus.Ministry;
             r.SubmittedAt = DateTime.Now;
@@ -240,7 +240,7 @@ public class FundingCommitmentService
                 targetRole: AppRole.Finance,
                 link: "/", entityType: "FundingCommitment", entityId: r.CommitId);
         }
-        else if (r.FundingType == "CSN Youth")
+        else if (r.FundingType == "CSN Youth funding (for the current year)")
         {
             r.Status = CommitmentStatus.Csn;
             r.SubmittedAt = DateTime.Now;
@@ -291,7 +291,7 @@ public class FundingCommitmentService
                           or CommitmentStatus.Pending or CommitmentStatus.Draft))
             return "Invalid commitment status for approval.";
 
-        if (r.FundingType == "In-Year MYSLP Residential" || r.FundingType == "Regional / TPR transfer")
+        if (r.FundingType == "An In-Year MYSLP transfer plan" || r.FundingType == "A plan for someone transferring from another region or agency")
         {
             if (_pf == null)
             {
@@ -954,7 +954,7 @@ public class FundingCommitmentService
             Time = fmtTime,
             PlanStart = ymd,
             PlanEnd = ymd,
-            FundingType = "None of the above",
+            FundingType = "Temporary funding (in-year support)",
             Placement = "Family Home",
             MainFunder = "MCCSS",
             AddlFunder = "— None —",
@@ -1073,7 +1073,7 @@ public class FundingCommitmentService
         Rows.Add(Row("45f4368f", "23343", "bill test", "Jun 15, 2000", year: "—", status: CommitmentStatus.Draft,
             creator: "Fatoumata Diallo", date: "May 13, 2026", time: "05:14 PM",
             ps: "2026-05-01", pe: "2026-05-31",
-            ft: "None of the above", place: "Family Home", min: "Finance / Admin",
+            ft: "Temporary funding (in-year support)", place: "Family Home", min: "Finance / Admin",
             addl: "Passport One (Family Services Ontario)", outcome: "Test", alt: "Test",
             mccss: new[] { "Temporary Funding Allocation - Children's", "Temporary Funding Allocation - Adult", "Permanent Funding Allocation - Children's" },
             planAmounts: new Dictionary<string, decimal>
@@ -1093,7 +1093,7 @@ public class FundingCommitmentService
         Rows.Add(Row("f8065e44", "84291", "Sarah Chen", "Mar 04, 2012", year: "2027", status: CommitmentStatus.Draft,
             creator: "Bhavesh Mishra", date: "May 13, 2026", time: "12:03 PM",
             ps: "2026-05-08", pe: "2026-05-31",
-            ft: "None of the above", place: "Group Living", min: "Finance / Admin",
+            ft: "Temporary funding (in-year support)", place: "Group Living", min: "Finance / Admin",
             pa: 50, addl: "Passport One (Family Services Ontario)", outcome: "Test", alt: "Test",
             aa: 25, av: 25, att: 1, hist: 1,
             services: new[]
@@ -1127,7 +1127,7 @@ public class FundingCommitmentService
             }));
 
         Rows.Add(Row("bc418688", "33871", "Daniela Rojas", "Apr 12, 2015", status: CommitmentStatus.Draft,
-            ft: "None of the above", min: "Intake Team",
+            ft: "Temporary funding (in-year support)", min: "Intake Team",
             mccss: new[] { "Special Services at Home (SSAH)" }, pt: "Unrestricted", pa: 0,
             vendor: "Unassigned", unit: "Session", rate: 0, units: 0,
             svcName: Catalog.Services[5], note: "Awaiting rate confirmation"));

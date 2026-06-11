@@ -80,7 +80,7 @@
         <ServiceLineSubform @ref="_subform"
                             IsRestricted="@(_draft.McsssPlanType == "Restricted")"
                             PlanTypes="_draft.McsssTypes"
-                            TotalFunding="@(_draft.MainFunder == "MCCSS" ? _draft.TotalPlan : NonMccssPlanAmount)"
+                            TotalFunding="@((_draft.MainFunder == "MCCSS" || IsTransferPlan) ? _draft.TotalPlan : NonMccssPlanAmount)"
                             AlreadyCommitted="@AlreadyCommittedExcludingCurrent()"
                             OnSave="OnSubformSave"
                             OnCancel="OnSubformCancel" />
@@ -99,10 +99,12 @@
     private decimal NonMccssPlanAmount { get; set; } = 0;
     private bool AssignAmountToVendor { get; set; } = false;
 
+    private bool IsTransferPlan => _draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency";
+
     private List<string> GetStepsList()
     {
         var steps = new List<string> { "Initial Details", "Funder Selection" };
-        if (_draft.MainFunder == "MCCSS")
+        if (_draft.MainFunder == "MCCSS" || IsTransferPlan)
         {
             steps.Add("SCS Team Accountable");
             steps.Add("Select Funding Types");
@@ -192,7 +194,7 @@
             </div>
         }
 
-        @if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+        @if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
         {
             <div class="wiz-row">
                 <label class="wiz-q">Where does the person currently live? <span class="req">*</span></label>
@@ -206,7 +208,7 @@
                 }
             </div>
         }
-        else if (_draft.FundingTypeChoice == "CSN Youth")
+        else if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
         {
             <div class="wiz-row">
                 <label class="wiz-q">Living arrangement (for information purposes only) <span class="req">*</span></label>
@@ -262,7 +264,14 @@
                 var isForced = IsFunderSelectionForced();
                 if (isForced && mfv != "MCCSS") continue;
                 <label class="wiz-radio">
-                    <input type="radio" name="mfunder" disabled="@isForced" checked="@(_draft.MainFunder == mfv)" @onchange="() => OnMainFunderChanged(mfv)" />
+                    @if (isForced)
+                    {
+                        <input type="radio" name="mfunder" disabled checked />
+                    }
+                    else
+                    {
+                        <input type="radio" name="mfunder" checked="@(_draft.MainFunder == mfv)" @onchange="() => OnMainFunderChanged(mfv)" />
+                    }
                     <span style="@(isForced ? "opacity:0.6" : "")">@mf</span>
                 </label>
             }
@@ -271,21 +280,30 @@
         @if (!string.IsNullOrEmpty(_draft.MainFunder))
         {
             <div class="wiz-row">
-                <label class="wiz-q">Please select additional funders.</label>
+                <label class="wiz-q">Additional Funder Selection</label>
                 <div class="wiz-chip-tray">
                     @foreach (var af in _draft.AdditionalFunders)
                     {
                         var afv = af;
-                        <span class="wiz-chip selected">@af <button @onclick="() => _draft.AdditionalFunders.Remove(afv)">×</button></span>
+                        <span class="wiz-chip selected">
+                            @af
+                            <button @onclick="() => _draft.AdditionalFunders.Remove(afv)">×</button>
+                        </span>
                     }
                 </div>
-                <div class="wiz-chip-tray" style="margin-top:8px">
-                    @foreach (var af in GetAllowedAdditionalFunders().Where(x => !_draft.AdditionalFunders.Contains(x) && x != _draft.MainFunder))
-                    {
-                        var afv = af;
-                        <button class="wiz-chip-pick" @onclick="() => _draft.AdditionalFunders.Add(afv)">+ @af</button>
-                    }
-                </div>
+                @{
+                    var pickable = GetAllowedAdditionalFunders().Where(x => !_draft.AdditionalFunders.Contains(x) && x != _draft.MainFunder).ToList();
+                }
+                @if (pickable.Any())
+                {
+                    <div class="wiz-chip-tray" style="margin-top:8px">
+                        @foreach (var af in pickable)
+                        {
+                            var afv = af;
+                            <button class="wiz-chip-pick" @onclick="() => _draft.AdditionalFunders.Add(afv)">+ @af</button>
+                        }
+                    </div>
+                }
             </div>
         }
     </text>;
@@ -300,42 +318,76 @@
         _draft.Services.Clear();
         NonMccssPlanAmount = 0;
         AssignAmountToVendor = false;
+
+        if (IsTransferPlan)
+        {
+            _draft.McsssPlanType = "Restricted";
+            _draft.ScsTeam = "Residential And Community Services (RCS)";
+            if (mainFunder == "Passport One (Family Services Ontario)")
+            {
+                _draft.McsssTypes.Add("Passport Funding");
+                _draft.McsssAmounts["Passport Funding"] = 0;
+                _draft.McsssRestrictions["Passport Funding"] = "Restricted";
+            }
+            else
+            {
+                _draft.McsssTypes.Add("MCCSS Fiscal Residential Funding Allocation");
+                _draft.McsssAmounts["MCCSS Fiscal Residential Funding Allocation"] = 0;
+                _draft.McsssRestrictions["MCCSS Fiscal Residential Funding Allocation"] = "Restricted";
+            }
+        }
     }
 
     private IEnumerable<string> GetAllowedMainFunders()
     {
+        if (_draft.FundingTypeChoice == "An In-Year MYSLP transfer plan" ||
+            _draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
+        {
+            return new[] { "MCCSS" };
+        }
+        if (_draft.FundingTypeChoice == "A plan for someone transferring from another region or agency" ||
+            _draft.FundingTypeChoice == "Temporary funding (in-year support)")
+        {
+            return new[] { "MCCSS", "Passport One (Family Services Ontario)" };
+        }
         var isAdmin = UserCtx?.IsAdmin == true;
         return Catalog.MainFunderChoices.Where(f => isAdmin || (f != "SSAH" && f != "CHEO" && f != "ODSP"));
     }
 
     private IEnumerable<string> GetAllowedAdditionalFunders()
     {
+        if (_draft.FundingTypeChoice == "An In-Year MYSLP transfer plan")
+        {
+            return new[] { "Passport One (Family Services Ontario)" };
+        }
+        if (_draft.FundingTypeChoice == "A plan for someone transferring from another region or agency" ||
+            _draft.FundingTypeChoice == "Temporary funding (in-year support)")
+        {
+            return new[] { "MCCSS", "Passport One (Family Services Ontario)" };
+        }
+        if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
+        {
+            return new[] { "SSAH", "CHEO" };
+        }
         return Catalog.AddlFunderChoices;
     }
 
     private IEnumerable<string> GetAllowedPlacements()
     {
-        if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
-        {
-            return Catalog.ResidentialPlacements.Where(p => p != "Lives with caregiver or guardian");
-        }
-        if (_draft.FundingTypeChoice == "CSN Youth")
-        {
-            return Catalog.ResidentialPlacements.Where(p => p == "Lives with caregiver or guardian");
-        }
         return Catalog.ResidentialPlacements;
     }
 
     private bool IsFunderSelectionForced()
     {
-        return _draft.FundingTypeChoice == "In-Year MYSLP Residential";
+        return _draft.FundingTypeChoice == "An In-Year MYSLP transfer plan" ||
+               _draft.FundingTypeChoice == "CSN Youth funding (for the current year)";
     }
 
     private void OnFundingTypeChoiceChanged(string choice)
     {
         _draft.FundingTypeChoice = choice;
 
-        if (choice == "In-Year MYSLP Residential")
+        if (choice == "An In-Year MYSLP transfer plan")
         {
             _draft.MainFunder = "MCCSS";
             _draft.AdditionalFunders.Clear();
@@ -346,9 +398,10 @@
             _draft.McsssRestrictions = new Dictionary<string, string> { ["MCCSS Fiscal Residential Funding Allocation"] = "Restricted" };
             _draft.CsnLivingArrangement = "";
         }
-        else if (choice == "Regional / TPR transfer")
+        else if (choice == "A plan for someone transferring from another region or agency")
         {
             _draft.MainFunder = "MCCSS";
+            _draft.AdditionalFunders.Clear();
             _draft.McsssPlanType = "Restricted";
             _draft.ScsTeam = "Residential And Community Services (RCS)";
             _draft.McsssTypes = new List<string> { "MCCSS Fiscal Residential Funding Allocation" };
@@ -356,9 +409,10 @@
             _draft.McsssRestrictions = new Dictionary<string, string> { ["MCCSS Fiscal Residential Funding Allocation"] = "Restricted" };
             _draft.CsnLivingArrangement = "";
         }
-        else if (choice == "CSN Youth")
+        else if (choice == "CSN Youth funding (for the current year)")
         {
             _draft.MainFunder = "MCCSS";
+            _draft.AdditionalFunders.Clear();
             _draft.McsssPlanType = "Restricted";
             _draft.ScsTeam = "Residential And Community Services (RCS)";
             _draft.McsssTypes = new List<string> { "Temporary Funding Allocation - Complex Special Needs (CSN)" };
@@ -369,6 +423,7 @@
         else
         {
             _draft.MainFunder = "MCCSS";
+            _draft.AdditionalFunders.Clear();
             _draft.McsssPlanType = "Restricted";
             _draft.ScsTeam = "";
             _draft.McsssTypes.Clear();
@@ -402,21 +457,20 @@
                 @foreach (var t in _draft.McsssTypes)
                 {
                     var tv = t;
-                    var isForced = IsFunderSelectionForced();
                     <span class="ft-chip-selected">
                         @t
-                        @if (!isForced)
-                        {
-                            <button @onclick="() => RemoveMcsssType(tv)" title="Remove">×</button>
-                        }
+                        <button @onclick="() => RemoveMcsssType(tv)" title="Remove">×</button>
                     </span>
                 }
-                @if (!IsFunderSelectionForced())
+                @{
+                    var pickableFt = GetAvailableFundingTypes().Where(x => !_draft.McsssTypes.Contains(x)).ToList();
+                }
+                @if (pickableFt.Any())
                 {
                     <select class="ft-chip-add" value=""
                             @onchange="@(e => AddMcsssTypeIfNew(e.Value?.ToString()))">
                         <option value="">+ Add funding type…</option>
-                        @foreach (var t in GetAvailableFundingTypes().Where(x => !_draft.McsssTypes.Contains(x)))
+                        @foreach (var t in pickableFt)
                         {
                             <option value="@t">@t</option>
                         }
@@ -447,7 +501,7 @@
 
                 <div class="wiz-row" style="margin-top:18px">
                     <label class="wiz-q">What is the MCCSS plan type? <span class="req">*</span></label>
-                    <select class="modal-input" disabled="@IsFunderSelectionForced()" @bind="_draft.McsssPlanType">
+                    <select class="modal-input" @bind="_draft.McsssPlanType">
                         <option value="Restricted">Restricted</option>
                         <option value="Unrestricted">Unrestricted</option>
                     </select>
@@ -547,10 +601,9 @@
             </div>
             <div>
                 <select class="modal-input" style="font-size:12px;padding:4px" value="@ln.Provider" @onchange="@(e => SetProvider(ln, e.Value?.ToString()))">
-                    <option value="Independent Support Worker">ISW</option>
-                    <option value="Service Provider Organization">SP</option>
-                    <option value="Direct Family">Family</option>
-                    <option value="Self-managed">Self</option>
+                    <option value="Independent Support Worker (ISW)">Independent Support Worker (ISW)</option>
+                    <option value="Service Provider (SP)">Service Provider (SP)</option>
+                    <option value="Caregiver or Guardian">Caregiver or Guardian</option>
                 </select>
             </div>
             <div>
@@ -614,7 +667,7 @@
     // ---------- Step: Vendor Assignment (Unrestricted MCCSS & non-MCCSS) ----------
     private RenderFragment StepVendorAssignment() => @<text>
         @{
-            var totalPlan = _draft.MainFunder == "MCCSS" ? _draft.TotalPlan : NonMccssPlanAmount;
+            var totalPlan = (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? _draft.TotalPlan : NonMccssPlanAmount;
             var totalCommitted = _draft.Services.Sum(s => s.LineTotalWithHst);
             var remaining = totalPlan - totalCommitted;
         }
@@ -643,10 +696,9 @@
                 <div style="display:grid;grid-template-columns:2fr 2fr 2fr 2fr 1fr;gap:12px;align-items:center;margin-bottom:8px">
                     <div>
                         <select class="modal-input" style="font-size:12px;padding:4px" value="@line.Provider" @onchange="@(e => SetProvider(line, e.Value?.ToString()))">
-                            <option value="Independent Support Worker">ISW</option>
-                            <option value="Service Provider Organization">SP</option>
-                            <option value="Direct Family">Family</option>
-                            <option value="Self-managed">Self</option>
+                            <option value="Independent Support Worker (ISW)">Independent Support Worker (ISW)</option>
+                            <option value="Service Provider (SP)">Service Provider (SP)</option>
+                            <option value="Caregiver or Guardian">Caregiver or Guardian</option>
                         </select>
                     </div>
                     <div>
@@ -684,8 +736,8 @@
         var line = new ServiceLine
         {
             Name = "Unrestricted Allocation",
-            Plan = _draft.MainFunder == "MCCSS" ? (_draft.McsssTypes.FirstOrDefault() ?? "") : _draft.MainFunder,
-            Provider = "Independent Support Worker",
+            Plan = (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? (_draft.McsssTypes.FirstOrDefault() ?? "") : _draft.MainFunder,
+            Provider = "Independent Support Worker (ISW)",
             Vendor = "Unassigned",
             Unit = "One-time",
             Rate = 0,
@@ -753,7 +805,7 @@
     // ---------- Step: Review & Submit ----------
     private RenderFragment StepReviewSubmit() => @<text>
         @{
-            var totalPlan = _draft.MainFunder == "MCCSS" ? _draft.TotalPlan : NonMccssPlanAmount;
+            var totalPlan = (_draft.MainFunder == "MCCSS" || IsTransferPlan) ? _draft.TotalPlan : NonMccssPlanAmount;
             var totalCommitted = _draft.Services.Sum(s => s.LineTotalWithHst);
             var remaining = totalPlan - totalCommitted;
         }
@@ -762,11 +814,11 @@
             <div class="rev-card">
                 <div class="rev-h">1 · Funding & client situation</div>
                 <div class="rev-k"><span>Type</span><span>@_draft.FundingTypeChoice</span></div>
-                @if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+                @if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
                 {
                     <div class="rev-k"><span>Placement</span><span>@_draft.ResidentialPlacement</span></div>
                 }
-                else if (_draft.FundingTypeChoice == "CSN Youth")
+                else if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
                 {
                     <div class="rev-k"><span>Living arrangement</span><span>@_draft.CsnLivingArrangement</span></div>
                 }
@@ -778,7 +830,7 @@
                 <div class="rev-h">2 · Funders & accountability</div>
                 <div class="rev-k"><span>Main funder</span><span>@_draft.MainFunder</span></div>
                 <div class="rev-k"><span>Additional funders</span><span>@(_draft.AdditionalFunders.Count == 0 ? "—" : string.Join(", ", _draft.AdditionalFunders))</span></div>
-                @if (_draft.MainFunder == "MCCSS")
+                @if (_draft.MainFunder == "MCCSS" || IsTransferPlan)
                 {
                     <div class="rev-k"><span>SCS team</span><span>@_draft.ScsTeam</span></div>
                 }
@@ -823,7 +875,7 @@
         {
             Name = "",
             Plan = plan,
-            Provider = "Independent Support Worker",
+            Provider = "Independent Support Worker (ISW)",
             Vendor = "Unassigned",
             Unit = "Hour",
             Rate = 0,
@@ -849,7 +901,7 @@
         ln.PlanningBaseAmount = decimal.TryParse(value, out var n) ? n : (decimal?)null;
 
     private void SetProvider(ServiceLine ln, string? value) =>
-        ln.Provider = value ?? "Independent Support Worker";
+        ln.Provider = value ?? "Independent Support Worker (ISW)";
 
     private void OpenNotePopover(ServiceLine ln) =>
         _notesPopoverLine = _notesPopoverLine == ln ? null : ln;
@@ -859,11 +911,11 @@
     private void ResolveGlForLine(ServiceLine ln)
     {
         string fundingStatus = "Temporary";
-        if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+        if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
         {
             fundingStatus = "Permanent";
         }
-        else if (_draft.FundingTypeChoice == "CSN Youth")
+        else if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
         {
             fundingStatus = "Temporary";
         }
@@ -903,7 +955,7 @@
             if (!status.Equals("Permanent", StringComparison.OrdinalIgnoreCase) && 
                 !status.Equals("Pending Ministry Approval", StringComparison.OrdinalIgnoreCase))
             {
-                return Catalog.FundingTypeChoices.Where(c => c == "None of the above");
+                return Catalog.FundingTypeChoices.Where(c => c == "Temporary funding (in-year support)");
             }
         }
         return Catalog.FundingTypeChoices;
@@ -911,24 +963,22 @@
 
     private IEnumerable<string> GetAllowedScsTeams()
     {
-        if (_draft.FundingTypeChoice is "In-Year MYSLP Residential" or "Regional / TPR transfer")
+        if (_draft.FundingTypeChoice == "Temporary funding (in-year support)")
         {
-            return new[] { "Residential And Community Services (RCS)" };
+            return new[]
+            {
+                "Adult Case Management (ACM)",
+                "Children's Case Management (CCM)",
+                "Residential And Community Services (RCS)",
+                "Program Supervisor (Special Approver)"
+            };
         }
-        if (_draft.FundingTypeChoice == "CSN Youth")
-        {
-            return new[] { "Residential And Community Services (RCS)", "Program Supervisor (Special Approver)" };
-        }
-        return Catalog.ScsTeams;
+        return new[] { "Residential And Community Services (RCS)", "Program Supervisor (Special Approver)" };
     }
 
     private IEnumerable<string> GetAvailableFundingTypes()
     {
-        if (_draft.FundingTypeChoice == "In-Year MYSLP Residential")
-        {
-            return new[] { "MCCSS Fiscal Residential Funding Allocation" };
-        }
-        if (_draft.FundingTypeChoice == "Regional / TPR transfer")
+        if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
         {
             return new[]
             {
@@ -937,7 +987,7 @@
                 "Passport Funding"
             };
         }
-        if (_draft.FundingTypeChoice == "CSN Youth")
+        if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
         {
             return new[]
             {
@@ -958,40 +1008,9 @@
 
         var normalizedPlan = GlMappingService.NormalizeFundingType(plan);
 
-        if (_draft.FundingTypeChoice == "In-Year MYSLP Residential")
+        if (_draft.FundingTypeChoice is "An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency")
         {
             var isNonePlacement = string.IsNullOrEmpty(_draft.ResidentialPlacement) || 
-                                   _draft.ResidentialPlacement.Equals("None of the above", StringComparison.OrdinalIgnoreCase);
-
-            if (isNonePlacement)
-            {
-                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "Prescription Medication/Supplies",
-                    "Presciption Medication/Supplies"
-                };
-                return allCompatible.Where(x => allowed.Contains(x));
-            }
-            else
-            {
-                // Only the 5 residential support types are allowed
-                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "Daily Living Support",
-                    "Individualized Staffing",
-                    "Clinical/Behaviour Supports",
-                    "Prescription Medication/Supplies",
-                    "Presciption Medication/Supplies",
-                    "Client Travel"
-                };
-                return allCompatible.Where(x => allowed.Contains(x));
-            }
-        }
-
-        if (_draft.FundingTypeChoice == "Regional / TPR transfer")
-        {
-            var isNonePlacement = string.IsNullOrEmpty(_draft.ResidentialPlacement) || 
-                                  _draft.ResidentialPlacement.Equals("Lives with caregiver or guardian", StringComparison.OrdinalIgnoreCase) ||
                                   _draft.ResidentialPlacement.Equals("None of the above", StringComparison.OrdinalIgnoreCase);
 
             if (normalizedPlan.Equals("MCCSS Fiscal Community Participation Funding Allocation", StringComparison.OrdinalIgnoreCase))
@@ -1048,7 +1067,7 @@
             }
         }
 
-        if (_draft.FundingTypeChoice == "CSN Youth")
+        if (_draft.FundingTypeChoice == "CSN Youth funding (for the current year)")
         {
             if (normalizedPlan.Equals("Temporary Funding  Allocation- Community Enhancement (CEF)", StringComparison.OrdinalIgnoreCase))
             {
@@ -1082,7 +1101,7 @@
             return allCompatible.Where(x => allowedCsn.Contains(x));
         }
 
-        if (_draft.FundingTypeChoice == "None of the above")
+        if (_draft.FundingTypeChoice == "Temporary funding (in-year support)")
         {
             if (normalizedPlan.Equals("Historical Respite Funding Allocation", StringComparison.OrdinalIgnoreCase))
             {
@@ -1248,8 +1267,8 @@
         return curStep switch
         {
             "Initial Details" => !string.IsNullOrEmpty(_draft.FundingTypeChoice)
-                  && (_draft.FundingTypeChoice is not ("In-Year MYSLP Residential" or "Regional / TPR transfer") || !string.IsNullOrEmpty(_draft.ResidentialPlacement))
-                  && (_draft.FundingTypeChoice != "CSN Youth" || !string.IsNullOrEmpty(_draft.CsnLivingArrangement))
+                  && (_draft.FundingTypeChoice is not ("An In-Year MYSLP transfer plan" or "A plan for someone transferring from another region or agency") || !string.IsNullOrEmpty(_draft.ResidentialPlacement))
+                  && (_draft.FundingTypeChoice != "CSN Youth funding (for the current year)" || !string.IsNullOrEmpty(_draft.CsnLivingArrangement))
                   && _draft.PlanStart.HasValue && _draft.PlanEnd.HasValue
                   && !string.IsNullOrWhiteSpace(_draft.CurrentSituationOutcome)
                   && !string.IsNullOrWhiteSpace(_draft.ImpactAndAlternatives),
@@ -1275,7 +1294,7 @@
 
     private void PrepareDraftForSave()
     {
-        if (_draft.MainFunder != "MCCSS")
+        if (_draft.MainFunder != "MCCSS" && !IsTransferPlan)
         {
             _draft.McsssTypes = new List<string> { _draft.MainFunder };
             _draft.McsssAmounts = new Dictionary<string, decimal> { [_draft.MainFunder] = NonMccssPlanAmount };
@@ -1288,7 +1307,7 @@
                     {
                         Name = "Unrestricted Allocation",
                         Plan = _draft.MainFunder,
-                        Provider = "Independent Support Worker",
+                        Provider = "Independent Support Worker (ISW)",
                         Vendor = "Unassigned",
                         Unit = "One-time",
                         Rate = NonMccssPlanAmount,

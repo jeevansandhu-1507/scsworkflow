@@ -82,13 +82,13 @@ public static class GlMappingService
         var clean = raw.Trim();
         if (clean.Equals("None of the above", StringComparison.OrdinalIgnoreCase))
             return "";
-        // Catalog uses: Group Living, Specialized Accommodations, Host Family, Supported Independent Living, Lives with caregiver or guardian
-        // Excel uses: Group Home, Host Family, Specialized Accommodation, Supported Independent Living (SIL)
-        if (clean.Equals("Group Living", StringComparison.OrdinalIgnoreCase))
+        if (clean.Contains("Group Home", StringComparison.OrdinalIgnoreCase) || clean.Contains("Group Living", StringComparison.OrdinalIgnoreCase))
             return "Group Home";
-        if (clean.Equals("Specialized Accommodations", StringComparison.OrdinalIgnoreCase))
+        if (clean.Contains("Host Family", StringComparison.OrdinalIgnoreCase))
+            return "Host Family";
+        if (clean.Contains("Specialized Accommodations", StringComparison.OrdinalIgnoreCase) || clean.Contains("Specialized Accommodation", StringComparison.OrdinalIgnoreCase))
             return "Specialized Accommodation";
-        if (clean.Equals("Supported Independent Living", StringComparison.OrdinalIgnoreCase))
+        if (clean.Contains("Supported Independent Living", StringComparison.OrdinalIgnoreCase))
             return "Supported Independent Living (SIL)";
         
         return clean;

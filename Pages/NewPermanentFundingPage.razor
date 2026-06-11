@@ -408,7 +408,7 @@
                 _draft.MinistryApprovedCMAllocationAmount = csnAmount > 0 ? csnAmount : csnServiceSum;
             }
 
-            if (!sourceFc.FundingType.Equals("None of the above", StringComparison.OrdinalIgnoreCase))
+            if (!sourceFc.FundingType.Equals("Temporary funding (in-year support)", StringComparison.OrdinalIgnoreCase))
             {
                 if (!sourceFc.MainFunder.Equals("MCCSS", StringComparison.OrdinalIgnoreCase))
                 {

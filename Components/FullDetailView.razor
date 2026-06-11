@@ -305,8 +305,8 @@
             Name = _avService,
             Plan = string.IsNullOrEmpty(_avPlan) ? (_row.MccssTypes.FirstOrDefault() ?? "") : _avPlan,
             Provider = Vendors.Vendors.FirstOrDefault(v => v.Name == _avVendor)?.Type == VendorType.Sp
-                ? "Service Provider Organization"
-                : "Independent Support Worker",
+                ? "Service Provider (SP)"
+                : "Independent Support Worker (ISW)",
             Vendor = _avVendor,
             Unit = "Hour",
             Rate = _avRate,

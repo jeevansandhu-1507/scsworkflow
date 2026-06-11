@@ -189,21 +189,19 @@ public static class Catalog
     // Wizard step 1 — funding type (matches dev.portal screenshot)
     public static readonly string[] FundingTypeChoices =
     {
-        "In-Year MYSLP Residential",
-        "Regional / TPR transfer",
-        "CSN Youth",
-        "None of the above"
+        "An In-Year MYSLP transfer plan",
+        "A plan for someone transferring from another region or agency",
+        "CSN Youth funding (for the current year)",
+        "Temporary funding (in-year support)"
     };
 
     // Wizard step 1 — residential placement type
     public static readonly string[] ResidentialPlacements =
     {
-        "Group Living",
-        "Specialized Accommodations",
-        "Host Family",
-        "Supported Independent Living",
-        "Lives with caregiver or guardian",
-        "None of the above"
+        "Group Home (GH)– Staffed residential/group home setting",
+        "Host Family (HF) – Living with a contracted host family",
+        "Specialized Accommodations (SA) – Setting with enhanced or intensive supports",
+        "Supported Independent Living (SIL) – Living independently with supports (e.g., with a caregiver/guardian or on their own)"
     };
 
     // CSN Living Arrangements
@@ -273,11 +271,9 @@ public static class Catalog
     // Provider types (matches prototype)
     public static readonly string[] WizardProviderTypes =
     {
-        "Independent Support Worker",
-        "Service Provider Organization",
-        "Direct Family",
-        "Self-managed",
-        "Agency-managed"
+        "Independent Support Worker (ISW)",
+        "Service Provider (SP)",
+        "Caregiver or Guardian"
     };
 
     // Unit types in subform
@@ -328,8 +324,8 @@ public static class Catalog
     // PROVIDERS
     public static readonly string[] Providers =
     {
-        "Independent Support Worker", "Service Provider Organization",
-        "Direct Family", "Self-managed"
+        "Independent Support Worker (ISW)", "Service Provider (SP)",
+        "Caregiver or Guardian"
     };
 
     // SERVICES
