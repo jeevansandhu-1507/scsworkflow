@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "SCSPortal",
   "resources": {
-    "hash": "sha256-4FThTXNA+W9pjYptxm6AzU5ZB+oD9zzrI/GyA1FEaj0=",
+    "hash": "sha256-B6cEDwa9Q2ZsWBKBpdTa7RqHpbqxAMa3Lb43Gd6X9aY=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-sn/g61GjVPhViOYQDkq1OMlk0eyS9r2Hi0qgU2o0HIU="
     },
@@ -48,7 +48,7 @@
       "System.Text.RegularExpressions.wasm": "sha256-iyKa6gZHB4OPS8L7sBquG6FfpvGKxCAIX1FNa1ts8TI=",
       "System.Threading.wasm": "sha256-xxupzv/Rv8t0XxpO0lAkJYWV75cxE9ycmHg6WOI09Pg=",
       "System.Private.CoreLib.wasm": "sha256-l0E7hGsdgMdaBhhshOjA7yJL+voNSZxMXQY8KMwNR0o=",
-      "SCSPortal.wasm": "sha256-d+STItJplO3JzMMIeqzwjVcmCQ7FQapJYo4YclFyS70="
+      "SCSPortal.wasm": "sha256-0LqycMu4FnmbMCKlIG5I/eyiAvbF6d2nZdcs0dHQMnI="
     }
   },
   "cacheBootResources": true,
