@@ -28,6 +28,8 @@ public class FcWizardDraft
     public decimal AddlFunderAmount { get; set; }
     public bool AssignAddlAmountToVendor { get; set; }
     public decimal AddlFunderVendor { get; set; }
+    public string AddlFunderProvider { get; set; } = "Independent Support Worker (ISW)";
+    public string AddlFunderVendorName { get; set; } = "Unassigned";
 
     // Step 3 — SCS team accountable
     public string ScsTeam { get; set; } = "";

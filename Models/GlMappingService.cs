@@ -75,6 +75,12 @@ public static class GlMappingService
             return isFrench ? "Temporary Flexible Funding  Allocation (Adult) - French" : "Temporary Flexible Funding  Allocation (Adult) - English";
         }
 
+        if (clean.Equals("Temporary Flexible Funding Allocation (Adult) - English", StringComparison.OrdinalIgnoreCase))
+            return "Temporary Flexible Funding  Allocation (Adult) - English";
+
+        if (clean.Equals("Temporary Flexible Funding Allocation (Adult) - French", StringComparison.OrdinalIgnoreCase))
+            return "Temporary Flexible Funding  Allocation (Adult) - French";
+
         return clean;
     }
 
@@ -164,7 +170,8 @@ public static class GlMappingService
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5521, GlName = "Structured Community Activities-CP (Perm)", AccountId = "72899000000125200" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5541, GlName = "Structured Seasonal Programs-CP (Perm)", AccountId = "72899000000125296" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", PlanType = null, FundingStatus = "Permanent", SupportType = "Client Travel", PlacementType = null, GlCode = 5616, GlName = "Client Travel-CP (Perm)", AccountId = "72899000000125504" },
-        new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = "Unrestricted", FundingStatus = "Temporary", SupportType = "Unrestricted Planning Accounts", PlacementType = null, GlCode = 5935, GlName = "Unrestricted Plan-CSN", AccountId = "72899000000376992" },
+        new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = "Unrestricted", FundingStatus = "Temporary", SupportType = "Unrestricted Planning Accounts", PlacementType = null, GlCode = 5930, GlName = "Unrestricted Plan-CEF", AccountId = "72899000000376992" },
+        new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = "Unrestricted", FundingStatus = "Temporary", SupportType = "Unrestricted Planning Accounts", PlacementType = null, GlCode = 5920, GlName = "Unrestricted Plan - CCM Flex", AccountId = "72899000000343008" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = null, FundingStatus = "Temporary", SupportType = "Daily Living Support", PlacementType = null, GlCode = 5015, GlName = "Daily Living Support-CSN", AccountId = "72899000000125104" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = null, FundingStatus = "Temporary", SupportType = "Individualized Staffing", PlacementType = null, GlCode = 5045, GlName = "Individualized Staffing-CSN", AccountId = "72899000000125104" },
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", PlanType = null, FundingStatus = "Temporary", SupportType = "In Home Respite", PlacementType = null, GlCode = 5114, GlName = "In Home Respite -CSN", AccountId = "72899000000125408" },
@@ -191,7 +198,6 @@ public static class GlMappingService
         new() { FundingType = "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", PlanType = null, FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5619, GlName = "Client Travel - ASD", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", PlanType = null, FundingStatus = "Temporary", SupportType = "Structured Community Activities", PlacementType = null, GlCode = 5523, GlName = "Structured Community Activities-ASD", AccountId = "72899000000125296" },
         new() { FundingType = "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", PlanType = null, FundingStatus = "Temporary", SupportType = "Structured Seasonal Programs", PlacementType = null, GlCode = 5542, GlName = "Structured Seasonal Programs-ASD", AccountId = "72899000000125296" },
-        new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = "Unrestricted", FundingStatus = "Temporary", SupportType = "None", PlacementType = null, GlCode = 5930, GlName = "Unrestricted Plan - CEF", AccountId = "72899000000376992" },
         new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = null, FundingStatus = "Temporary", SupportType = "In Home Respite", PlacementType = null, GlCode = 5113, GlName = "In Home Respite - CEF", AccountId = "72899000000125408" },
         new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = null, FundingStatus = "Temporary", SupportType = "Out of Home Respite", PlacementType = null, GlCode = 5143, GlName = "Out of Home Respite -CEF", AccountId = "72899000000125408" },
         new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", PlanType = null, FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5620, GlName = "Client Travel -CEF", AccountId = "72899000000372304" },
@@ -334,7 +340,7 @@ public static class GlMappingService
         new() { FundingType = "Temporary Funding Allocation - Complex Special Needs (CSN)", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5615, GlName = "Client Travel-CSN", AccountId = "72899000000125408" },
         new() { FundingType = "MCCSS Fiscal Community Participation Funding Allocation", FundingStatus = "Permanent", SupportType = "Client Travel", PlacementType = null, GlCode = 5616, GlName = "Client Travel-CP (Perm)", AccountId = "72899000000125504" },
         new() { FundingType = "Passport Program", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5617, GlName = "Client Travel-Passport Program", AccountId = "72899000000125504" },
-        new() { FundingType = "Spec Comm Suppts-Child.-Serv Coord/Case Mgt.", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5618, GlName = "Client Travel - CCM Flex", AccountId = "72899000000372304" },
+        new() { FundingType = "Temporary Funding Allocation - Children's", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5618, GlName = "Client Travel - CCM Flex", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding -Autism Spectrum Disorder (ASD) Allocation", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5619, GlName = "Client Travel - ASD", AccountId = "72899000000372304" },
         new() { FundingType = "Temporary Funding  Allocation- Community Enhancement (CEF)", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5620, GlName = "Client Travel -CEF", AccountId = "72899000000372304" },
         new() { FundingType = "Historical Respite Funding Allocation", FundingStatus = "Temporary", SupportType = "Client Travel", PlacementType = null, GlCode = 5621, GlName = "Client Travel - Historical", AccountId = "72899000000372304" },
@@ -384,7 +390,7 @@ public static class GlMappingService
         new() { FundingType = "", FundingStatus = "Temporary", SupportType = "Extraordinary Supports", PlacementType = null, GlCode = 5800, GlName = "Extraordinary Supports", AccountId = "72899000000377008" },
     };
 
-    public static List<string> GetCompatibleSupportTypes(string fundingType, string planType)
+    public static List<string> GetCompatibleSupportTypes(string fundingType, string planType, string? placementType = null)
     {
         var normFunding = NormalizeFundingType(fundingType);
         
@@ -393,26 +399,26 @@ public static class GlMappingService
             return new List<string> { "Unrestricted Planning Accounts" };
         }
 
-        // Filter SupportTypes list where the header matches or compatible list contains the funding type.
-        // We match by name or by normalized representation.
-        var list = new List<string>();
-        foreach (var st in SupportTypes)
-        {
-            if (st.CompatibleFundingTypes.Any(c => 
-                c.Equals(normFunding, StringComparison.OrdinalIgnoreCase) || 
-                NormalizeFundingType(c).Equals(normFunding, StringComparison.OrdinalIgnoreCase) ||
-                // check for Passport vs Passport Funding
-                (normFunding.Contains("Passport") && c.Contains("Passport"))
-            ))
-            {
-                list.Add(st.Name);
-            }
-        }
-        
-        // If the list is empty, default to all restricted support types as fallback, or at least common ones.
+        var isNonePlacement = string.IsNullOrEmpty(placementType) || 
+                              placementType.Equals("None of the above", StringComparison.OrdinalIgnoreCase);
+        var normPlacement = isNonePlacement ? null : placementType;
+
+        // Dynamically extract compatible support types directly from CommitmentMappings
+        var list = CommitmentMappings
+            .Where(m => m.FundingType.Equals(normFunding, StringComparison.OrdinalIgnoreCase) || 
+                       (normFunding.Contains("Passport") && m.FundingType.Contains("Passport")))
+            .Where(m => m.PlacementType == null || m.PlacementType.Equals(normPlacement, StringComparison.OrdinalIgnoreCase))
+            .Where(m => !string.IsNullOrEmpty(m.SupportType) && 
+                        !m.SupportType.Equals("N/A", StringComparison.OrdinalIgnoreCase) &&
+                        !m.SupportType.Equals("None", StringComparison.OrdinalIgnoreCase) &&
+                        !m.SupportType.Equals("Unrestricted Planning Accounts", StringComparison.OrdinalIgnoreCase))
+            .Select(m => m.SupportType)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+            
+        // If the list is empty, default to all restricted support types as fallback
         if (list.Count == 0)
         {
-            // Just return all non-finance-only support types
             list = SupportTypes.Select(s => s.Name).ToList();
         }
         return list;
